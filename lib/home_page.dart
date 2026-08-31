@@ -210,8 +210,8 @@ class _HomePageState extends State<HomePage> {
           const SizedBox(height: 15),
           Row(
             children: [
-              _buildPrizeCard('نفر اول', '۵ میلیون', Icons.looks_one, Colors.gold),
-              _buildPrizeCard('نفر دوم', '۲ میلیون', Icons.looks_two, Colors.silver),
+              _buildPrizeCard('نفر اول', '۵ میلیون', Icons.looks_one, const Color(0xFFFFD700)),
+              _buildPrizeCard('نفر دوم', '۲ میلیون', Icons.looks_two, const Color(0xFFC0C0C0)),
               _buildPrizeCard('نفر سوم', '۱ میلیون', Icons.looks_3, Colors.orangeAccent),
             ],
           ),

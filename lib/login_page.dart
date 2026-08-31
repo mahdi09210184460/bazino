@@ -10,6 +10,8 @@ class LoginPage extends StatefulWidget {
 
 class _LoginPageState extends State<LoginPage> {
   final _formKey = GlobalKey<FormState>();
+  final TextEditingController _nameController = TextEditingController();
+  final TextEditingController _phoneController = TextEditingController();
   final TextEditingController _emailController = TextEditingController();
 
   @override
@@ -31,7 +33,7 @@ class _LoginPageState extends State<LoginPage> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              const SizedBox(height: 40),
+              const SizedBox(height: 20),
               const Text(
                 'بازینو',
                 textAlign: TextAlign.center,
@@ -57,37 +59,27 @@ class _LoginPageState extends State<LoginPage> {
                   fontWeight: FontWeight.bold,
                 ),
               ),
-              const SizedBox(height: 60),
-              TextFormField(
-                controller: _emailController,
-                keyboardType: TextInputType.emailAddress,
-                textAlign: TextAlign.right,
-                textDirection: TextDirection.rtl,
-                style: const TextStyle(color: Colors.black),
-                decoration: InputDecoration(
-                  labelText: 'آدرس ایمیل',
-                  labelStyle: const TextStyle(color: Colors.black54),
-                  prefixIcon: const Icon(Icons.email, color: Colors.orange),
-                  filled: true,
-                  fillColor: Colors.orange.withOpacity(0.1),
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(10),
-                    borderSide: BorderSide.none,
-                  ),
-                  focusedBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(10),
-                    borderSide: const BorderSide(color: Colors.orange, width: 2),
-                  ),
-                ),
-              ),
+              const SizedBox(height: 40),
+              _buildTextField(_nameController, 'نام و نام خانوادگی', Icons.person),
+              const SizedBox(height: 15),
+              _buildTextField(_phoneController, 'شماره تماس', Icons.phone, keyboardType: TextInputType.phone),
+              const SizedBox(height: 15),
+              _buildTextField(_emailController, 'آدرس ایمیل', Icons.email, keyboardType: TextInputType.emailAddress),
               const SizedBox(height: 40),
               ElevatedButton(
                 onPressed: () {
-                  // Navigate to Home Page
-                  Navigator.pushReplacement(
-                    context,
-                    MaterialPageRoute(builder: (context) => const HomePage()),
-                  );
+                  if (_formKey.currentState!.validate()) {
+                    Navigator.pushReplacement(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => HomePage(
+                          userName: _nameController.text,
+                          userPhone: _phoneController.text,
+                          userEmail: _emailController.text,
+                        ),
+                      ),
+                    );
+                  }
                 },
                 style: ElevatedButton.styleFrom(
                   backgroundColor: Colors.orange,
@@ -109,6 +101,37 @@ class _LoginPageState extends State<LoginPage> {
           ),
         ),
       ),
+    );
+  }
+
+  Widget _buildTextField(TextEditingController controller, String label, IconData icon, {TextInputType keyboardType = TextInputType.text}) {
+    return TextFormField(
+      controller: controller,
+      keyboardType: keyboardType,
+      textAlign: TextAlign.right,
+      textDirection: TextDirection.rtl,
+      style: const TextStyle(color: Colors.black),
+      decoration: InputDecoration(
+        labelText: label,
+        labelStyle: const TextStyle(color: Colors.black54),
+        prefixIcon: Icon(icon, color: Colors.orange),
+        filled: true,
+        fillColor: Colors.orange.withOpacity(0.1),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(10),
+          borderSide: BorderSide.none,
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(10),
+          borderSide: const BorderSide(color: Colors.orange, width: 2),
+        ),
+      ),
+      validator: (value) {
+        if (value == null || value.isEmpty) {
+          return 'لطفاً این فیلد را پر کنید';
+        }
+        return null;
+      },
     );
   }
 }
