@@ -34,3 +34,6 @@ jobs:
         with:
           name: sekechi-apk
           path: build/app/outputs/flutter-apk/app-release.apk
+
+
+
