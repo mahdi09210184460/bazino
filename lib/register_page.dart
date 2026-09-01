@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'login_page.dart';
 import 'home_page.dart';
 
 class RegisterPage extends StatefulWidget {
@@ -12,66 +12,75 @@ class RegisterPage extends StatefulWidget {
 
 class _RegisterPageState extends State<RegisterPage> {
   final _formKey = GlobalKey<FormState>();
-  final TextEditingController _nameController = TextEditingController();
-  final TextEditingController _phoneController = TextEditingController();
   final TextEditingController _emailController = TextEditingController();
-  final TextEditingController _referralController = TextEditingController();
+  final TextEditingController _nameController = TextEditingController();
+  final TextEditingController _codeController = TextEditingController();
+  final SupabaseClient _supabase = Supabase.instance.client;
 
-  Future<void> _saveUserData() async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString('userName', _nameController.text);
-    await prefs.setString('userPhone', _phoneController.text);
-    await prefs.setString('userEmail', _emailController.text);
+  bool _isCodeSent = false;
+  bool _isLoading = false;
+
+  Future<void> _sendOTP() async {
+    if (!_formKey.currentState!.validate()) return;
+    setState(() => _isLoading = true);
+
+    try {
+      // Send OTP via Supabase
+      await _supabase.auth.signInWithOtp(
+        email: _emailController.text.trim(),
+        shouldCreateUser: true,
+      );
+      
+      setState(() => _isCodeSent = true);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('کد تایید به ایمیل شما ارسال شد')),
+      );
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('خطا: ${e.toString()}')),
+      );
+    } finally {
+      setState(() => _isLoading = false);
+    }
   }
 
-  void _showWelcomeDialog() {
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (BuildContext context) {
-        return AlertDialog(
-          title: const Text(
-            'خوش آمدید',
-            textAlign: TextAlign.center,
-            style: TextStyle(fontWeight: FontWeight.bold),
-          ),
-          content: const Text(
-            'به برنامه پیکو مارکت خوش آمدید این برنامه همه جوره در اختیار شماست شما میتونید هم بازی کنید هم خرید کنید و هم پول در بیارید',
-            textAlign: TextAlign.center,
-            style: TextStyle(fontSize: 16),
-          ),
-          actions: [
-            Center(
-              child: ElevatedButton(
-                onPressed: () async {
-                  await _saveUserData();
-                  if (!context.mounted) return;
-                  Navigator.of(context).pop(); // Close dialog
-                  Navigator.pushReplacement(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => HomePage(
-                        userName: _nameController.text,
-                        userPhone: _phoneController.text,
-                        userEmail: _emailController.text,
-                      ),
-                    ),
-                  );
-                },
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.orange,
-                  foregroundColor: Colors.black,
-                ),
-                child: const Text('بزن بریم!'),
-              ),
+  Future<void> _verifyOTP() async {
+    if (_codeController.text.length < 6) return;
+    setState(() => _isLoading = true);
+
+    try {
+      final AuthResponse res = await _supabase.auth.verifyOTP(
+        type: OtpType.magiclink,
+        token: _codeController.text.trim(),
+        email: _emailController.text.trim(),
+      );
+
+      if (res.session != null) {
+        // Save user data locally
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setString('userName', _nameController.text.isNotEmpty ? _nameController.text : 'کاربر پیکو');
+        await prefs.setString('userEmail', _emailController.text.trim());
+        await prefs.setString('userPhone', ''); // Phone removed
+
+        if (!mounted) return;
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(
+            builder: (context) => HomePage(
+              userName: prefs.getString('userName') ?? '',
+              userPhone: '',
+              userEmail: _emailController.text.trim(),
             ),
-          ],
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(20),
           ),
         );
-      },
-    );
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('کد تایید اشتباه است')),
+      );
+    } finally {
+      setState(() => _isLoading = false);
+    }
   }
 
   @override
@@ -79,16 +88,12 @@ class _RegisterPageState extends State<RegisterPage> {
     return Scaffold(
       backgroundColor: Colors.white,
       appBar: AppBar(
-        title: const Text(
-          'ثبت نام در پیکو مارکت',
-          style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold),
-        ),
+        title: const Text('ورود / ثبت نام', style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold)),
         backgroundColor: Colors.orange,
         centerTitle: true,
-        elevation: 0,
       ),
       body: SingleChildScrollView(
-        padding: const EdgeInsets.all(20.0),
+        padding: const EdgeInsets.all(25.0),
         child: Form(
           key: _formKey,
           child: Column(
@@ -98,98 +103,40 @@ class _RegisterPageState extends State<RegisterPage> {
               const Text(
                 'پیکو مارکت',
                 textAlign: TextAlign.center,
-                style: TextStyle(
-                  fontSize: 50,
-                  fontWeight: FontWeight.w900,
-                  color: Colors.orange,
-                  shadows: [
-                    Shadow(
-                      blurRadius: 10.0,
-                      color: Colors.black12,
-                      offset: Offset(2.0, 2.0),
-                    ),
-                  ],
-                ),
-              ),
-              const Text(
-                'خوش آمدید',
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  fontSize: 16,
-                  color: Colors.black54,
-                  fontWeight: FontWeight.bold,
-                ),
+                style: TextStyle(fontSize: 45, fontWeight: FontWeight.w900, color: Colors.orange),
               ),
               const SizedBox(height: 40),
-              _buildTextField(
-                controller: _nameController,
-                label: 'نام و نام خانوادگی',
-                icon: Icons.person,
-              ),
-              const SizedBox(height: 15),
-              _buildTextField(
-                controller: _phoneController,
-                label: 'شماره تماس',
-                icon: Icons.phone,
-                keyboardType: TextInputType.phone,
-              ),
-              const SizedBox(height: 15),
-              _buildTextField(
-                controller: _emailController,
-                label: 'ایمیل',
-                icon: Icons.email,
-                keyboardType: TextInputType.emailAddress,
-              ),
-              const SizedBox(height: 15),
-              _buildTextField(
-                controller: _referralController,
-                label: 'کد معرف (اختیاری)',
-                icon: Icons.card_giftcard,
-                isOptional: true,
-              ),
-              const SizedBox(height: 30),
-              ElevatedButton(
-                onPressed: () {
-                  if (_formKey.currentState!.validate()) {
-                    _showWelcomeDialog();
-                  }
-                },
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.orange,
-                  padding: const EdgeInsets.symmetric(vertical: 15),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(10),
-                  ),
+              if (!_isCodeSent) ...[
+                const Text('لطفاً اطلاعات خود را وارد کنید:', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                const SizedBox(height: 20),
+                _buildTextField(_nameController, 'نام و نام خانوادگی (برای اولین ثبت نام)', Icons.person),
+                const SizedBox(height: 15),
+                _buildTextField(_emailController, 'آدرس ایمیل', Icons.email, keyboardType: TextInputType.emailAddress),
+                const SizedBox(height: 30),
+                ElevatedButton(
+                  onPressed: _isLoading ? null : _sendOTP,
+                  style: ElevatedButton.styleFrom(backgroundColor: Colors.orange, padding: const EdgeInsets.symmetric(vertical: 15)),
+                  child: _isLoading 
+                    ? const CircularProgressIndicator(color: Colors.black) 
+                    : const Text('دریافت کد تایید', style: TextStyle(color: Colors.black, fontSize: 18, fontWeight: FontWeight.bold)),
                 ),
-                child: const Text(
-                  'ثبت نام',
-                  style: TextStyle(
-                    color: Colors.black,
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                  ),
+              ] else ...[
+                const Text('کد ۶ رقمی ارسال شده به ایمیل را وارد کنید:', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                const SizedBox(height: 20),
+                _buildTextField(_codeController, 'کد ۶ رقمی', Icons.lock_clock, keyboardType: TextInputType.number),
+                const SizedBox(height: 30),
+                ElevatedButton(
+                  onPressed: _isLoading ? null : _verifyOTP,
+                  style: ElevatedButton.styleFrom(backgroundColor: Colors.green, padding: const EdgeInsets.symmetric(vertical: 15)),
+                  child: _isLoading 
+                    ? const CircularProgressIndicator(color: Colors.white) 
+                    : const Text('تایید و ورود به برنامه', style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
                 ),
-              ),
-              const SizedBox(height: 15),
-              TextButton(
-                onPressed: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(builder: (context) => const LoginPage()),
-                  );
-                },
-                style: TextButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(vertical: 15),
+                TextButton(
+                  onPressed: () => setState(() => _isCodeSent = false),
+                  child: const Text('تغییر ایمیل', style: TextStyle(color: Colors.orange)),
                 ),
-                child: const Text(
-                  'ورود',
-                  style: TextStyle(
-                    color: Colors.orange,
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ),
+              ],
             ],
           ),
         ),
@@ -197,38 +144,22 @@ class _RegisterPageState extends State<RegisterPage> {
     );
   }
 
-  Widget _buildTextField({
-    required TextEditingController controller,
-    required String label,
-    required IconData icon,
-    TextInputType keyboardType = TextInputType.text,
-    bool isOptional = false,
-  }) {
+  Widget _buildTextField(TextEditingController controller, String label, IconData icon, {TextInputType keyboardType = TextInputType.text}) {
     return TextFormField(
       controller: controller,
       keyboardType: keyboardType,
       textAlign: TextAlign.right,
       textDirection: TextDirection.rtl,
-      style: const TextStyle(color: Colors.black),
       decoration: InputDecoration(
         labelText: label,
-        labelStyle: const TextStyle(color: Colors.black54),
         prefixIcon: Icon(icon, color: Colors.orange),
         filled: true,
-        fillColor: Colors.orange.withOpacity(0.1),
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(10),
-          borderSide: BorderSide.none,
-        ),
-        focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(10),
-          borderSide: const BorderSide(color: Colors.orange, width: 2),
-        ),
+        fillColor: Colors.orange.withOpacity(0.05),
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide.none),
       ),
       validator: (value) {
-        if (!isOptional && (value == null || value.isEmpty)) {
-          return 'لطفاً $label را وارد کنید';
-        }
+        if (value == null || value.isEmpty) return 'این فیلد الزامی است';
+        if (keyboardType == TextInputType.emailAddress && !value.contains('@')) return 'ایمیل نامعتبر است';
         return null;
       },
     );
