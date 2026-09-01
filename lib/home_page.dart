@@ -141,7 +141,7 @@ class HomePage extends StatefulWidget {
 
 class _HomePageState extends State<HomePage> {
   int _selectedIndex = 0;
-  final String _adminEmail = "mahdi09210184460@gmail.com"; // Your admin email
+  final String _adminEmail = "aminsoltani13920@gmail.com"; // Your admin email
   final SupabaseClient _supabase = Supabase.instance.client;
 
   String _instaID = "bazino_app";
