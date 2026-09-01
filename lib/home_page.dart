@@ -898,7 +898,7 @@ class _AdminPanelState extends State<AdminPanel> {
   }
   void _editPrize(int index) {
     PrizeRecord p = _tempPrizes[index]; TextEditingController tCtrl = TextEditingController(text: p.title), aCtrl = TextEditingController(text: p.amount);
-    showDialog(context: context, builder: (context) => AlertDialog(title: const Text('ویرایش جایزه'), content: Column(mainAxisSize: MainAxisSize.min, children: [TextField(controller: tCtrl, decoration: const InputDecoration(labelText: 'عنوان')), TextField(controller: aCtrl, decoration: const InputDecoration(labelText: 'مبلغ'))]), actions: [TextButton(onPressed: () => Navigator.pop(context), child: const Text('لغو')), ElevatedButton(onPressed: () { if (tCtrl.text.isEmpty || aCtrl.text.isEmpty) return; setState(() => _tempPrizes[index].title = tCtrl.text; _tempPrizes[index].amount = aCtrl.text;); Navigator.pop(context); }, child: const Text('ثبت'))]));
+    showDialog(context: context, builder: (context) => AlertDialog(title: const Text('ویرایش جایزه'), content: Column(mainAxisSize: MainAxisSize.min, children: [TextField(controller: tCtrl, decoration: const InputDecoration(labelText: 'عنوان')), TextField(controller: aCtrl, decoration: const InputDecoration(labelText: 'مبلغ'))]), actions: [TextButton(onPressed: () => Navigator.pop(context), child: const Text('لغو')), ElevatedButton(onPressed: () { if (tCtrl.text.isEmpty || aCtrl.text.isEmpty) return; setState(() { _tempPrizes[index].title = tCtrl.text; _tempPrizes[index].amount = aCtrl.text; }); Navigator.pop(context); }, child: const Text('ثبت'))]));
   }
   void _addPrize() {
     TextEditingController tCtrl = TextEditingController(), aCtrl = TextEditingController();
