@@ -141,7 +141,7 @@ class HomePage extends StatefulWidget {
 
 class _HomePageState extends State<HomePage> {
   int _selectedIndex = 0;
-  final String _adminPhone = "09927891608";
+  final String _adminEmail = "mahdi09210184460@gmail.com"; // Your admin email
   final SupabaseClient _supabase = Supabase.instance.client;
 
   String _instaID = "bazino_app";
@@ -554,7 +554,7 @@ class _HomePageState extends State<HomePage> {
           const SizedBox(height: 15),
           GestureDetector(
             onDoubleTap: () {
-              if (widget.userPhone == _adminPhone) {
+              if (widget.userEmail == _adminEmail) {
                 Navigator.push(context, MaterialPageRoute(builder: (context) => AdminPanel(
                   instaProducts: _instaProducts,
                   telegramProducts: _telegramProducts,

@@ -8,25 +8,21 @@ import 'home_page.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   
-  // Initialize Supabase
-  // TODO: Replace with your actual Supabase Project URL and Anon Key
+  // Initialize Supabase with your project URL
+  // NOTE: You still need to provide your 'anonKey' from Supabase settings
   await Supabase.initialize(
-    url: 'YOUR_SUPABASE_URL',
-    anonKey: 'YOUR_SUPABASE_ANON_KEY',
+    url: 'https://zhrxagzgrohpdivgppxh.supabase.co',
+    anonKey: 'sb_publishable_ea6nBoR7swULwyAqYtVyMw_vNyIBNWh', 
   );
 
   final prefs = await SharedPreferences.getInstance();
   
   final String? name = prefs.getString('userName');
-  final String? phone = prefs.getString('userPhone');
   final String? email = prefs.getString('userEmail');
 
   runApp(MyApp(
-    isLoggedIn: name != null && name.isNotEmpty && 
-                phone != null && phone.isNotEmpty && 
-                email != null && email.isNotEmpty,
+    isLoggedIn: email != null && email.isNotEmpty,
     userName: name ?? '',
-    userPhone: phone ?? '',
     userEmail: email ?? '',
   ));
 }
@@ -34,14 +30,12 @@ void main() async {
 class MyApp extends StatelessWidget {
   final bool isLoggedIn;
   final String userName;
-  final String userPhone;
   final String userEmail;
 
   const MyApp({
     super.key,
     required this.isLoggedIn,
     required this.userName,
-    required this.userPhone,
     required this.userEmail,
   });
 
@@ -64,7 +58,7 @@ class MyApp extends StatelessWidget {
       ],
       locale: const Locale('fa', 'IR'),
       home: isLoggedIn 
-          ? HomePage(userName: userName, userPhone: userPhone, userEmail: userEmail)
+          ? HomePage(userName: userName, userPhone: '', userEmail: userEmail)
           : const RegisterPage(),
     );
   }
