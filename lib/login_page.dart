@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'home_page.dart';
 
 class LoginPage extends StatefulWidget {
@@ -13,6 +14,13 @@ class _LoginPageState extends State<LoginPage> {
   final TextEditingController _nameController = TextEditingController();
   final TextEditingController _phoneController = TextEditingController();
   final TextEditingController _emailController = TextEditingController();
+
+  Future<void> _saveUserData() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('userName', _nameController.text);
+    await prefs.setString('userPhone', _phoneController.text);
+    await prefs.setString('userEmail', _emailController.text);
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -35,7 +43,7 @@ class _LoginPageState extends State<LoginPage> {
             children: [
               const SizedBox(height: 20),
               const Text(
-                'بازینو',
+                'پیکو مارکت',
                 textAlign: TextAlign.center,
                 style: TextStyle(
                   fontSize: 50,
@@ -67,8 +75,10 @@ class _LoginPageState extends State<LoginPage> {
               _buildTextField(_emailController, 'آدرس ایمیل', Icons.email, keyboardType: TextInputType.emailAddress),
               const SizedBox(height: 40),
               ElevatedButton(
-                onPressed: () {
+                onPressed: () async {
                   if (_formKey.currentState!.validate()) {
+                    await _saveUserData();
+                    if (!context.mounted) return;
                     Navigator.pushReplacement(
                       context,
                       MaterialPageRoute(

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'login_page.dart';
 import 'home_page.dart';
 
@@ -16,6 +17,13 @@ class _RegisterPageState extends State<RegisterPage> {
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _referralController = TextEditingController();
 
+  Future<void> _saveUserData() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('userName', _nameController.text);
+    await prefs.setString('userPhone', _phoneController.text);
+    await prefs.setString('userEmail', _emailController.text);
+  }
+
   void _showWelcomeDialog() {
     showDialog(
       context: context,
@@ -28,14 +36,16 @@ class _RegisterPageState extends State<RegisterPage> {
             style: TextStyle(fontWeight: FontWeight.bold),
           ),
           content: const Text(
-            'به برنامه بازینو خوش آمدید این برنامه همه جوره در اختیار شماست شما میتونید هم بازی کنید هم خرید کنید و هم پول در بیارید',
+            'به برنامه پیکو مارکت خوش آمدید این برنامه همه جوره در اختیار شماست شما میتونید هم بازی کنید هم خرید کنید و هم پول در بیارید',
             textAlign: TextAlign.center,
             style: TextStyle(fontSize: 16),
           ),
           actions: [
             Center(
               child: ElevatedButton(
-                onPressed: () {
+                onPressed: () async {
+                  await _saveUserData();
+                  if (!context.mounted) return;
                   Navigator.of(context).pop(); // Close dialog
                   Navigator.pushReplacement(
                     context,
@@ -70,7 +80,7 @@ class _RegisterPageState extends State<RegisterPage> {
       backgroundColor: Colors.white,
       appBar: AppBar(
         title: const Text(
-          'ثبت نام در بازینو',
+          'ثبت نام در پیکو مارکت',
           style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold),
         ),
         backgroundColor: Colors.orange,
@@ -86,7 +96,7 @@ class _RegisterPageState extends State<RegisterPage> {
             children: [
               const SizedBox(height: 30),
               const Text(
-                'بازینو',
+                'پیکو مارکت',
                 textAlign: TextAlign.center,
                 style: TextStyle(
                   fontSize: 50,
@@ -135,6 +145,7 @@ class _RegisterPageState extends State<RegisterPage> {
                 controller: _referralController,
                 label: 'کد معرف (اختیاری)',
                 icon: Icons.card_giftcard,
+                isOptional: true,
               ),
               const SizedBox(height: 30),
               ElevatedButton(
@@ -191,6 +202,7 @@ class _RegisterPageState extends State<RegisterPage> {
     required String label,
     required IconData icon,
     TextInputType keyboardType = TextInputType.text,
+    bool isOptional = false,
   }) {
     return TextFormField(
       controller: controller,
@@ -213,6 +225,12 @@ class _RegisterPageState extends State<RegisterPage> {
           borderSide: const BorderSide(color: Colors.orange, width: 2),
         ),
       ),
+      validator: (value) {
+        if (!isOptional && (value == null || value.isEmpty)) {
+          return 'لطفاً $label را وارد کنید';
+        }
+        return null;
+      },
     );
   }
 }
