@@ -336,7 +336,7 @@ class _HomePageState extends State<HomePage> {
           SingleChildScrollView(
             scrollDirection: Axis.horizontal,
             child: Row(
-              children: _prizes.map((p) => _buildPrizeCard(p.title, p.amount, IconData(p.iconCode, fontFamily: 'MaterialIcons'), Color(p.colorValue))).toList(),
+              children: _prizes.map((p) => _buildPrizeCard(p.title, p.amount, _getIcon(p.iconCode), Color(p.colorValue))).toList(),
             ),
           ),
           const SizedBox(height: 30),
@@ -345,6 +345,13 @@ class _HomePageState extends State<HomePage> {
         ],
       ),
     );
+  }
+
+  IconData _getIcon(int code) {
+    if (code == Icons.looks_one.codePoint) return Icons.looks_one;
+    if (code == Icons.looks_two.codePoint) return Icons.looks_two;
+    if (code == Icons.looks_3.codePoint) return Icons.looks_3;
+    return Icons.card_giftcard;
   }
 
   Widget _buildLotteryBanner() {
