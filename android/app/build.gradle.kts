@@ -24,11 +24,13 @@ android {
 
     signingConfigs {
         create("release") {
-            // Using direct values for GitHub Actions ease, but ideally use Secrets
-            keyAlias = "upload"
-            keyPassword = "12345678"
-            storeFile = file("upload-keystore.jks")
-            storePassword = "12345678"
+            val keystorePath = keystoreProperties["storeFile"] as String?
+            if (keystorePath != null && file(rootProject.file(keystorePath)).exists()) {
+                keyAlias = keystoreProperties["keyAlias"] as String
+                keyPassword = keystoreProperties["keyPassword"] as String
+                storeFile = rootProject.file(keystorePath)
+                storePassword = keystoreProperties["storePassword"] as String
+            }
         }
     }
 
@@ -42,7 +44,11 @@ android {
 
     buildTypes {
         release {
-            signingConfig = signingConfigs.getByName("release")
+            val releaseConfig = signingConfigs.findByName("release")
+            if (releaseConfig != null) {
+                signingConfig = releaseConfig
+            }
+            
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
