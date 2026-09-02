@@ -23,15 +23,12 @@ android {
     }
 
     signingConfigs {
-        // Only configure release signing if the keystore file exists
-        val keystorePath = keystoreProperties["storeFile"] as String?
-        if (keystorePath != null && file(keystorePath).exists()) {
-            create("release") {
-                keyAlias = keystoreProperties["keyAlias"] as String
-                keyPassword = keystoreProperties["keyPassword"] as String
-                storeFile = file(keystorePath)
-                storePassword = keystoreProperties["storePassword"] as String
-            }
+        create("release") {
+            // Using direct values for GitHub Actions ease, but ideally use Secrets
+            keyAlias = "upload"
+            keyPassword = "12345678"
+            storeFile = file("upload-keystore.jks")
+            storePassword = "12345678"
         }
     }
 
@@ -45,12 +42,7 @@ android {
 
     buildTypes {
         release {
-            // Apply release signing only if it was configured above
-            val releaseConfig = signingConfigs.findByName("release")
-            if (releaseConfig != null) {
-                signingConfig = releaseConfig
-            }
-            
+            signingConfig = signingConfigs.getByName("release")
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
