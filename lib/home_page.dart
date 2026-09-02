@@ -7,9 +7,9 @@ import 'dart:math';
 import 'dart:convert';
 
 class AppUserRecord {
-  final String name, phone, username, lastLogin;
-  AppUserRecord({required this.name, required this.phone, required this.username, required this.lastLogin});
-  factory AppUserRecord.fromJson(Map<String, dynamic> json) => AppUserRecord(name: json['name'] ?? '', phone: json['phone'] ?? '', username: json['username'] ?? '', lastLogin: json['last_login'] ?? '');
+  final String name, phone, username, lastLogin; bool isBanned;
+  AppUserRecord({required this.name, required this.phone, required this.username, required this.lastLogin, this.isBanned = false});
+  factory AppUserRecord.fromJson(Map<String, dynamic> json) => AppUserRecord(name: json['name'] ?? '', phone: json['phone'] ?? '', username: json['username'] ?? '', lastLogin: json['last_login'] ?? '', isBanned: json['is_banned'] ?? false);
 }
 
 class Product {
@@ -80,20 +80,34 @@ class _HomePageState extends State<HomePage> {
   final String _adminPhone = "09927891608"; 
   final SupabaseClient _supabase = Supabase.instance.client;
 
-  String _username = "", _instaID = "pico", _telegramID = "@pico", _supportEmail = "pico@support", _paymentLink = "https://zarrinpal.com", _lotteryEntryFee = "۱۰,۰۰۰ تومان", _lotteryRules = "۱. پرداخت ورودی الزامی است.", _aiBase = "سلام من دستیار هوشمند هستم.";
+  String _username = "", _instaID = "pico", _telegramID = "@pico", _supportEmail = "pico@support", _paymentLink = "https://zarrinpal.com", _lotteryEntryFee = "۱۰,۰۰۰ تومان", _lotteryRules = "قوانین برنامه", _aiBase = "دستیار هوشمند";
   String _catInstaName = "اینستاگرام", _catTeleName = "تلگرام", _catOtherName = "سایر";
   int _walletBalance = 0;
   List<Product> _instaProducts = [], _telegramProducts = [], _otherProducts = [], _cart = [];
   List<Winner> _lotteryWinners = []; List<PrizeRecord> _prizes = []; List<LotteryParticipant> _lotteryParticipants = []; List<OrderRecord> _allOrders = []; List<AppUserRecord> _appUsers = []; List<SupportTicket> _myTickets = [], _allTickets = []; List<AppNews> _allNews = []; List<WalletTransaction> _myTransactions = [];
-  String _lotteryBannerTitle = 'قرعه‌کشی بزرگ هفتگی', _lotteryBannerPrize = 'جایزه ۵ میلیونی', _lotteryBannerDate = 'جمعه ساعت ۲۱';
-
-  int _lotteryStep = 0;
-  final TextEditingController _lNameController = TextEditingController(), _lPhoneController = TextEditingController();
-  bool _isLoading = true;
-  String _searchProductQuery = "";
+  String _lotteryBannerTitle = 'قرعه‌کشی بزرگ', _lotteryBannerPrize = 'جایزه ویژه', _lotteryBannerDate = 'جمعه';
+  bool _isLoading = true; String _searchProductQuery = "";
 
   @override
-  void initState() { super.initState(); _fetchSupabaseData(); }
+  void initState() { super.initState(); _fetchSupabaseData(); _startSecurityMonitor(); }
+
+  Future<void> _startSecurityMonitor() async {
+    // Periodic check for Ban status
+    Future.delayed(const Duration(minutes: 5), () async {
+      final res = await _supabase.from('app_users').select('is_banned').eq('phone', widget.userPhone).maybeSingle();
+      if (res != null && res['is_banned'] == true) {
+        _handleBan();
+      }
+    });
+  }
+
+  void _handleBan() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.clear();
+    if (!mounted) return;
+    Navigator.pushAndRemoveUntil(context, MaterialPageRoute(builder: (c) => const RegisterPage()), (r) => false);
+    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('دسترسی شما به دلیل تخلف مسدود شد'), backgroundColor: Colors.red));
+  }
 
   Future<void> _fetchSupabaseData() async {
     if (!mounted) return;
@@ -117,7 +131,11 @@ class _HomePageState extends State<HomePage> {
         if (k == 'cat_other_name') _catOtherName = v;
       }
       final userRes = await _supabase.from('app_users').select().eq('phone', widget.userPhone).maybeSingle();
-      if (userRes != null) { _walletBalance = userRes['wallet_balance'] ?? 0; _username = userRes['username'] ?? 'بدون نام کاربری'; }
+      if (userRes != null) {
+        if (userRes['is_banned'] == true) { _handleBan(); return; }
+        _walletBalance = userRes['wallet_balance'] ?? 0;
+        _username = userRes['username'] ?? 'بدون نام کاربری';
+      }
 
       _instaProducts = (await _supabase.from('products').select().eq('category', 'insta')).map((e) => Product.fromJson(e)).toList();
       _telegramProducts = (await _supabase.from('products').select().eq('category', 'tele')).map((e) => Product.fromJson(e)).toList();
@@ -131,22 +149,8 @@ class _HomePageState extends State<HomePage> {
       _allNews = (await _supabase.from('news').select().order('created_at', ascending: false)).map((e) => AppNews.fromJson(e)).toList();
       _myTickets = _allTickets.where((t) => t.userPhone == widget.userPhone).toList();
       _myTransactions = (await _supabase.from('wallet_transactions').select().eq('user_phone', widget.userPhone).order('created_at', ascending: false)).map((e) => WalletTransaction.fromJson(e)).toList();
-      
-      _assistantAutoScan(); 
     } catch (e) { debugPrint('Supabase Error: $e'); }
     if (mounted) setState(() => _isLoading = false);
-  }
-
-  Future<void> _assistantAutoScan() async {
-    final prefs = await SharedPreferences.getInstance();
-    for (var order in _allOrders.where((o) => o.userPhone == widget.userPhone)) {
-      String key = 'order_status_${order.id}';
-      String? lastStatus = prefs.getString(key);
-      if (lastStatus != null && lastStatus != order.status) {
-        await _supabase.from('messages').insert({'user_phone': widget.userPhone, 'title': 'بروزرسانی سفارش', 'content': "سفارش '${order.productTitle}' به وضعیت '${order.status}' تغییر یافت.", 'date': DateTime.now().toString().split('.')[0]});
-      }
-      await prefs.setString(key, order.status);
-    }
   }
 
   @override
@@ -155,7 +159,7 @@ class _HomePageState extends State<HomePage> {
     List<Widget> widgetOptions = [_buildStoreContent(), _buildPrizesContent(), _buildLotteryContent(), _buildOrdersContent(), _buildProfileContent()];
     return Scaffold(
       backgroundColor: Colors.grey[50],
-      appBar: AppBar(title: Text(['پیکو مارکت', 'جوایز', 'قرعه‌کشی', 'سفارشات', 'پروفایل'][_selectedIndex], style: const TextStyle(fontWeight: FontWeight.bold)), backgroundColor: Colors.orange, centerTitle: true, actions: [IconButton(onPressed: _fetchSupabaseData, icon: const Icon(Icons.refresh)), Stack(children: [IconButton(onPressed: _showCartDialog, icon: const Icon(Icons.shopping_cart)), if (_cart.isNotEmpty) Positioned(right: 5, top: 5, child: CircleAvatar(radius: 8, backgroundColor: Colors.red, child: Text('${_cart.length}', style: const TextStyle(fontSize: 10, color: Colors.white))))])]),
+      appBar: AppBar(title: Text(['فروشگاه پیکو', 'جوایز', 'قرعه‌کشی', 'سفارشات', 'پروفایل'][_selectedIndex], style: const TextStyle(fontWeight: FontWeight.bold)), backgroundColor: Colors.orange, centerTitle: true, actions: [IconButton(onPressed: _fetchSupabaseData, icon: const Icon(Icons.refresh)), Stack(children: [IconButton(onPressed: _showCartDialog, icon: const Icon(Icons.shopping_cart)), if (_cart.isNotEmpty) Positioned(right: 5, top: 5, child: CircleAvatar(radius: 8, backgroundColor: Colors.red, child: Text('${_cart.length}', style: const TextStyle(fontSize: 10, color: Colors.white))))])]),
       body: widgetOptions.elementAt(_selectedIndex),
       floatingActionButton: FloatingActionButton(onPressed: _showAssistantDialog, backgroundColor: Colors.purple, child: const Icon(Icons.psychology, color: Colors.white)),
       bottomNavigationBar: BottomNavigationBar(type: BottomNavigationBarType.fixed, selectedItemColor: Colors.orange, currentIndex: _selectedIndex, onTap: (i) => setState(() => _selectedIndex = i), items: const [BottomNavigationBarItem(icon: Icon(Icons.store), label: 'فروشگاه'), BottomNavigationBarItem(icon: Icon(Icons.emoji_events), label: 'جوایز'), BottomNavigationBarItem(icon: Icon(Icons.auto_awesome), label: 'قرعه‌کشی'), BottomNavigationBarItem(icon: Icon(Icons.list_alt), label: 'سفارشات'), BottomNavigationBarItem(icon: Icon(Icons.person), label: 'پروفایل')]),
@@ -183,9 +187,8 @@ class _HomePageState extends State<HomePage> {
   String _getAIResponse(String q) {
     q = q.toLowerCase();
     if (q.contains('خبر')) return _allNews.isNotEmpty ? "آخرین خبر: ${_allNews.first.title}" : "خبری نیست.";
-    if (q.contains('سفارش')) return "می‌توانید وضعیت سفارشات خود را در تب 'سفارشات' ببینید.";
-    if (q.contains('شارژ') || q.contains('کیف')) return "برای شارژ به پروفایل و بخش 'شارژ کیف پول' بروید.";
-    return "در خدمتم! سوالی در مورد پیکو مارکت دارید؟";
+    if (q.contains('سفارش')) return "وضعیت سفارشات در تب 'سفارشات' است.";
+    return "چطور می‌توانم کمکتان کنم؟";
   }
 
   Widget _buildChatBubble(Map<String, String> chat) => Align(alignment: chat['role'] == 'bot' ? Alignment.centerRight : Alignment.centerLeft, child: Container(margin: const EdgeInsets.symmetric(vertical: 5), padding: const EdgeInsets.all(15), decoration: BoxDecoration(color: chat['role'] == 'bot' ? Colors.grey[200] : Colors.purple.withOpacity(0.1), borderRadius: BorderRadius.circular(15)), child: Text(chat['msg']!)));
@@ -217,11 +220,11 @@ class _HomePageState extends State<HomePage> {
   String _generatedCode = "";
   Future<void> _handleLotteryPay() async { launchUrl(Uri.parse(_paymentLink)); _showLoading('استعلام...'); await Future.delayed(const Duration(seconds: 3)); Navigator.pop(context); _generatedCode = "LOT-${Random().nextInt(90000)+10000}"; await _supabase.from('participants').insert({'name': _lNameController.text, 'phone': _lPhoneController.text, 'username': _username, 'lottery_code': _generatedCode, 'date': DateTime.now().toString().split('.')[0]}); await _supabase.from('wallet_transactions').insert({'user_phone': widget.userPhone, 'amount': -10000, 'type': 'ورودی قرعه‌کشی', 'date': DateTime.now().toString().split('.')[0]}); setState(() => _lotteryStep = 3); }
 
-  Widget _buildPrizesContent() => SingleChildScrollView(padding: const EdgeInsets.all(16), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [const Text('🎁 جوایز دوره'), SizedBox(height: 180, child: ListView.builder(scrollDirection: Axis.horizontal, itemCount: _prizes.length, itemBuilder: (c, i) => Card(child: Column(children: [Icon(_getIcon(_prizes[i].iconCode), size: 40, color: Color(_prizes[i].colorValue)), Text(_prizes[i].title), Text(_prizes[i].amount)])))), const Text('🏆 برندگان قبلی'), ..._lotteryWinners.map((w) => Card(child: ListTile(title: Text(w.name), subtitle: Text('از ${w.city} | جایزه: ${w.prize}'))))]));
+  Widget _buildPrizesContent() => SingleChildScrollView(padding: const EdgeInsets.all(16), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [const Text('🎁 جوایز دوره'), SizedBox(height: 180, child: ListView.builder(scrollDirection: Axis.horizontal, itemCount: _prizes.length, itemBuilder: (c, i) => Card(child: Column(children: [Icon(_getIcon(_prizes[i].iconCode), size: 40, color: Color(_prizes[i].colorValue)), Text(_prizes[i].title), Text(_prizes[i].amount)])))), const Text('🏆 تالار برندگان'), ..._lotteryWinners.map((w) => Card(child: ListTile(title: Text(w.name), subtitle: Text('از ${w.city} | جایزه: ${w.prize}'))))]));
   Widget _buildOrdersContent() => ListView.builder(itemCount: _allOrders.length, itemBuilder: (c, i) => _allOrders[i].userPhone == widget.userPhone ? Card(child: ListTile(title: Text(_allOrders[i].productTitle), subtitle: Text('کد: ${_allOrders[i].trackingCode}'), trailing: Text(_allOrders[i].status))) : const SizedBox.shrink());
   Widget _buildProfileContent() => SingleChildScrollView(padding: const EdgeInsets.all(25), child: Column(children: [const CircleAvatar(radius: 50, child: Icon(Icons.person, size: 50)), const SizedBox(height: 15), Text(widget.userName), Text('نام کاربری: $_username', style: const TextStyle(color: Colors.orange, fontWeight: FontWeight.bold)), Text('موجودی: $_walletBalance تومان'), const SizedBox(height: 10), Row(mainAxisAlignment: MainAxisAlignment.spaceEvenly, children: [ElevatedButton.icon(onPressed: _showTransactions, icon: const Icon(Icons.history), label: const Text('تاریخچه')), ElevatedButton.icon(onPressed: _showRecharge, icon: const Icon(Icons.add_card), label: const Text('شارژ'))]), _buildInfoTile(Icons.info_outline, 'مدیریت', 'ورود به پنل', onDoubleTap: () { if (widget.userPhone == _adminPhone) Navigator.push(context, MaterialPageRoute(builder: (c) => AdminPanel(instaProducts: _instaProducts, telegramProducts: _telegramProducts, otherProducts: _otherProducts, lotteryWinners: _lotteryWinners, prizes: _prizes, lotteryParticipants: _lotteryParticipants, allOrders: _allOrders, appUsers: _appUsers, allTickets: _allTickets, allNews: _allNews, bannerTitle: _lotteryBannerTitle, bannerPrize: _lotteryBannerPrize, bannerDate: _lotteryBannerDate, insta: _instaID, tele: _telegramID, mail: _supportEmail, paymentLink: _paymentLink, lotteryFee: _lotteryEntryFee, lotteryRules: _lotteryRules, aiBase: _aiBase, catInsta: _catInstaName, catTele: _catTeleName, catOther: _catOtherName, onUpdate: (a,b,c,d,e,f,g,h,i,j,k,l,m,n,o,p,q,r) => _fetchSupabaseData()))); }), ElevatedButton(onPressed: () async { (await SharedPreferences.getInstance()).clear(); Navigator.pushAndRemoveUntil(context, MaterialPageRoute(builder: (c) => const RegisterPage()), (r) => false); }, child: const Text('خروج'))]));
 
-  void _showTransactions() => showDialog(context: context, builder: (c) => AlertDialog(title: const Text('تاریخچه تراکنش‌ها'), content: SizedBox(width: double.maxFinite, height: 400, child: _myTransactions.isEmpty ? const Center(child: Text('تراکنشی ندارید')) : ListView.builder(itemCount: _myTransactions.length, itemBuilder: (c, i) => ListTile(title: Text(_myTransactions[i].type), subtitle: Text(_myTransactions[i].date), trailing: Text('${_myTransactions[i].amount} تومان', style: TextStyle(color: _myTransactions[i].amount.contains('-') ? Colors.red : Colors.green)))))));
+  void _showTransactions() => showDialog(context: context, builder: (c) => AlertDialog(title: const Text('تاریخچه'), content: SizedBox(width: double.maxFinite, height: 400, child: _myTransactions.isEmpty ? const Center(child: Text('خالی')) : ListView.builder(itemCount: _myTransactions.length, itemBuilder: (c, i) => ListTile(title: Text(_myTransactions[i].type), subtitle: Text(_myTransactions[i].date), trailing: Text('${_myTransactions[i].amount}'))))));
   void _showRecharge() { showDialog(context: context, builder: (c) => AlertDialog(title: const Text('شارژ'), content: Column(mainAxisSize: MyAxisSize.min, children: [for (var a in [200000, 400000, 600000, 800000, 1000000]) ListTile(title: Text('$a تومان'), onTap: () => _handleRecharge(a))]))); }
   Future<void> _handleRecharge(int a) async { Navigator.pop(context); launchUrl(Uri.parse(_paymentLink)); _showLoading('استعلام...'); await Future.delayed(const Duration(seconds: 4)); Navigator.pop(context); _walletBalance += a; await _supabase.from('app_users').update({'wallet_balance': _walletBalance}).eq('phone', widget.userPhone); await _supabase.from('wallet_transactions').insert({'user_phone': widget.userPhone, 'amount': a, 'type': 'شارژ کیف پول', 'date': DateTime.now().toString().split('.')[0]}); _fetchSupabaseData(); }
   void _showLoading(String m) => showDialog(context: context, builder: (c) => AlertDialog(content: Column(mainAxisSize: MyAxisSize.min, children: [const CircularProgressIndicator(), Text(m)])));
@@ -274,36 +277,33 @@ class _AdminPanelState extends State<AdminPanel> {
 
   @override
   Widget build(BuildContext context) {
-    return DefaultTabController(length: 6, child: Scaffold(backgroundColor: Colors.grey[100], appBar: AppBar(title: const Text('مدیریت پیشرفته'), backgroundColor: Colors.orange, actions: [IconButton(icon: const Icon(Icons.save), onPressed: _save)], bottom: const TabBar(isScrollable: true, tabs: [Tab(text: 'کاربران'), Tab(text: 'سفارشات'), Tab(text: 'اخبار'), Tab(text: 'تیکت‌ها'), Tab(text: 'محصولات'), Tab(text: 'تنظیمات')])), body: Column(children: [
-      Padding(padding: const EdgeInsets.all(10), child: TextField(decoration: const InputDecoration(labelText: 'جستجو نام/یوزرنیم...', prefixIcon: Icon(Icons.search), border: OutlineInputBorder()), onChanged: (v) => setState(() => _searchQuery = v))),
-      Expanded(child: TabBarView(children: [_buildUsersTab(), _buildOrdersTab(), _buildNewsTab(), _buildTicketsTab(), _buildProductsTab(), _buildSettingsTab()])),
+    return DefaultTabController(length: 7, child: Scaffold(backgroundColor: Colors.grey[100], appBar: AppBar(title: const Text('مدیریت پیشرفته'), backgroundColor: Colors.orange, actions: [IconButton(icon: const Icon(Icons.save), onPressed: _save)], bottom: const TabBar(isScrollable: true, tabs: [Tab(text: 'کاربران'), Tab(text: 'سفارشات'), Tab(text: 'تیکت‌ها'), Tab(text: 'اخبار'), Tab(text: 'محصولات'), Tab(text: 'جوایز'), Tab(text: 'تنظیمات')])), body: Column(children: [
+      Padding(padding: const EdgeInsets.all(10), child: TextField(decoration: const InputDecoration(labelText: 'جستجو...', prefixIcon: Icon(Icons.search), border: OutlineInputBorder()), onChanged: (v) => setState(() => _searchQuery = v))),
+      Expanded(child: TabBarView(children: [_buildUsersTab(), _buildOrdersTab(), _buildTicketsTab(), _buildNewsTab(), _buildProductsTab(), _buildLotteryMgmtTab(), _buildSettingsTab()])),
     ])));
   }
 
   Widget _buildUsersTab() {
     var filtered = widget.appUsers.where((u) => u.username.contains(_searchQuery) || u.name.contains(_searchQuery)).toList();
-    return ListView.builder(itemCount: filtered.length, itemBuilder: (c, i) => Card(child: ListTile(title: Text(filtered[i].name), subtitle: Text(filtered[i].username))));
+    return ListView.builder(itemCount: filtered.length, itemBuilder: (c, i) => Card(child: ListTile(title: Text(filtered[i].name), subtitle: Text(filtered[i].username), trailing: IconButton(icon: const Icon(Icons.block, color: Colors.red), onPressed: () => _banUser(filtered[i])))));
   }
+  void _banUser(AppUserRecord u) async { await _supabase.from('app_users').update({'is_banned': true}).eq('phone', u.phone); ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('کاربر مسدود شد'))); }
   Widget _buildOrdersTab() {
     var filtered = _tempOrders.where((o) => o.username.contains(_searchQuery) || o.userName.contains(_searchQuery)).toList();
-    return ListView.builder(itemCount: filtered.length, itemBuilder: (c, i) => Card(child: ListTile(title: Text(filtered[i].productTitle), subtitle: Text('${filtered[i].username} | ${filtered[i].status}'), trailing: Row(mainAxisSize: MainAxisSize.min, children: [IconButton(icon: const Icon(Icons.check, color: Colors.green), onPressed: () => setState(() => filtered[i].status = "انجام شده")), IconButton(icon: const Icon(Icons.close, color: Colors.red), onPressed: () => setState(() => filtered[i].status = "تاخیر در ارسال"))]))));
+    return ListView.builder(itemCount: filtered.length, itemBuilder: (c, i) => Card(child: ListTile(title: Text(filtered[i].productTitle), subtitle: Text('${filtered[i].username} | ${filtered[i].status}'), trailing: Row(mainAxisSize: MainAxisSize.min, children: [IconButton(icon: const Icon(Icons.check, color: Colors.green), onPressed: () => setState(() => filtered[i].status = "انجام شده")), IconButton(icon: const Icon(Icons.close, color: Colors.red), onPressed: () => setState(() => filtered[i].status = "تاخیر"))]))));
   }
-  Widget _buildNewsTab() => Column(children: [ElevatedButton(onPressed: _addNews, child: const Text('انتشار خبر جدید')), Expanded(child: ListView.builder(itemCount: _tempNews.length, itemBuilder: (c, i) => Card(child: ListTile(title: Text(_tempNews[i].title), trailing: IconButton(icon: const Icon(Icons.delete, color: Colors.red), onPressed: () => setState(() => _tempNews.removeAt(i)))))))]);
-  void _addNews() {
-    TextEditingController t = TextEditingController(), m = TextEditingController();
-    showDialog(context: context, builder: (c) => AlertDialog(title: const Text('خبر جدید'), content: Column(mainAxisSize: MyAxisSize.min, children: [TextField(controller: t, decoration: const InputDecoration(labelText: 'عنوان')), TextField(controller: m, decoration: const InputDecoration(labelText: 'متن خبر'), maxLines: 3)]), actions: [ElevatedButton(onPressed: () { setState(() => _tempNews.add(AppNews(title: t.text, content: m.text, date: DateTime.now().toString().split(' ')[0]))); Navigator.pop(c); }, child: const Text('انتشار'))]));
-  }
+  Widget _buildNewsTab() => Column(children: [ElevatedButton(onPressed: _addNews, child: const Text('انتشار خبر')), Expanded(child: ListView.builder(itemCount: _tempNews.length, itemBuilder: (c, i) => Card(child: ListTile(title: Text(_tempNews[i].title), trailing: IconButton(icon: const Icon(Icons.delete), onPressed: () => setState(() => _tempNews.removeAt(i)))))))]);
+  void _addNews() { TextEditingController t = TextEditingController(), m = TextEditingController(); showDialog(context: context, builder: (c) => AlertDialog(title: const Text('خبر'), content: Column(mainAxisSize: MyAxisSize.min, children: [TextField(controller: t), TextField(controller: m, maxLines: 3)]), actions: [ElevatedButton(onPressed: () { setState(() => _tempNews.add(AppNews(title: t.text, content: m.text, date: DateTime.now().toString().split(' ')[0]))); Navigator.pop(c); }, child: const Text('ثبت'))])); }
   Widget _buildTicketsTab() {
     var filtered = _tempTickets.where((t) => t.username.contains(_searchQuery) || t.userName.contains(_searchQuery)).toList();
     return ListView.builder(itemCount: filtered.length, itemBuilder: (c, i) => Card(child: ListTile(title: Text(filtered[i].userName), subtitle: Text(filtered[i].message), trailing: Text(filtered[i].status), onTap: () => _replyTicket(filtered[i]))));
   }
-  void _replyTicket(SupportTicket t) {
-    TextEditingController r = TextEditingController(text: t.adminReply);
-    showDialog(context: context, builder: (c) => AlertDialog(title: const Text('پاسخ'), content: TextField(controller: r, maxLines: 3), actions: [ElevatedButton(onPressed: () { setState(() { t.adminReply = r.text; t.status = "پاسخ داده شده"; }); Navigator.pop(c); }, child: const Text('ثبت'))]));
-  }
+  void _replyTicket(SupportTicket t) { TextEditingController r = TextEditingController(text: t.adminReply); showDialog(context: context, builder: (c) => AlertDialog(title: const Text('پاسخ'), content: TextField(controller: r, maxLines: 3), actions: [ElevatedButton(onPressed: () { setState(() { t.adminReply = r.text; t.status = "پاسخ داده شده"; }); Navigator.pop(c); }, child: const Text('ثبت'))])); }
   Widget _buildProductsTab() => Column(children: [_buildCategoryMgmt(_cInsta.text, _tempInsta, 'insta'), _buildCategoryMgmt(_cTele.text, _tempTele, 'tele'), _buildCategoryMgmt(_cOther.text, _tempOther, 'other')]);
   Widget _buildCategoryMgmt(String t, List<Product> l, String k) => Card(child: Column(children: [ListTile(title: Text(t)), ...l.map((e) => ListTile(title: Text(e.title), trailing: IconButton(icon: const Icon(Icons.delete), onPressed: () => setState(() => l.remove(e))))), ElevatedButton(onPressed: () => _addProduct(l, k), child: const Text('افزودن'))]));
-  void _addProduct(List<Product> l, String k) { TextEditingController t = TextEditingController(), p = TextEditingController(); showDialog(context: context, builder: (c) => AlertDialog(title: const Text('محصول'), content: Column(mainAxisSize: MyAxisSize.min, children: [TextField(controller: t, decoration: const InputDecoration(labelText: 'نام')), TextField(controller: p, decoration: const InputDecoration(labelText: 'قیمت'))]), actions: [ElevatedButton(onPressed: () { setState(() => l.add(Product(title: t.text, price: '${t.text} تومان', quality: 'عالی', imageUrl: '', category: k, priceInt: int.tryParse(p.text) ?? 0))); Navigator.pop(c); }, child: const Text('افزودن'))])); }
+  void _addProduct(List<Product> l, String k) { TextEditingController t = TextEditingController(), p = TextEditingController(); showDialog(context: context, builder: (c) => AlertDialog(content: Column(mainAxisSize: MyAxisSize.min, children: [TextField(controller: t, decoration: const InputDecoration(labelText: 'نام')), TextField(controller: p, decoration: const InputDecoration(labelText: 'قیمت'))]), actions: [ElevatedButton(onPressed: () { setState(() => l.add(Product(title: t.text, price: '${p.text} تومان', quality: 'عالی', imageUrl: '', category: k, priceInt: int.tryParse(p.text) ?? 0))); Navigator.pop(c); }, child: const Text('افزودن'))])); }
+  Widget _buildLotteryMgmtTab() => Column(children: [ElevatedButton(onPressed: _addWinner, child: const Text('افزودن برنده')), Expanded(child: ListView.builder(itemCount: _tempWinners.length, itemBuilder: (c, i) => Card(child: ListTile(title: Text(_tempWinners[i].name), subtitle: Text(_tempWinners[i].city), trailing: IconButton(icon: const Icon(Icons.delete), onPressed: () => setState(() => _tempWinners.removeAt(i)))))))]);
+  void _addWinner() { TextEditingController n = TextEditingController(), ci = TextEditingController(), p = TextEditingController(), d = TextEditingController(); showDialog(context: context, builder: (c) => AlertDialog(content: Column(mainAxisSize: MyAxisSize.min, children: [TextField(controller: n, decoration: const InputDecoration(labelText: 'نام')), TextField(controller: ci, decoration: const InputDecoration(labelText: 'شهر')), TextField(controller: p, decoration: const InputDecoration(labelText: 'جایزه')), TextField(controller: d, decoration: const InputDecoration(labelText: 'تاریخ'))]), actions: [ElevatedButton(onPressed: () { setState(() => _tempWinners.add(Winner(name: n.text, city: ci.text, prize: p.text, date: d.text))); Navigator.pop(c); }, child: const Text('ثبت'))])); }
   Widget _buildSettingsTab() => SingleChildScrollView(padding: const EdgeInsets.all(20), child: Column(children: [_buildStyledField(_ai, 'جمله AI', Icons.psychology), _buildStyledField(_rules, 'قوانین', Icons.gavel), _buildStyledField(_cInsta, 'طبقه ۱', Icons.label), _buildStyledField(_cTele, 'طبقه ۲', Icons.label), _buildStyledField(_cOther, 'طبقه ۳', Icons.label), _buildStyledField(_pay, 'لینک پرداخت', Icons.link), _buildStyledField(_fee, 'ورودی', Icons.payments), _buildStyledField(_title, 'عنوان بنر', Icons.title), _buildStyledField(_prize, 'جایزه بنر', Icons.card_giftcard), _buildStyledField(_date, 'تاریخ بنر', Icons.event)]));
   Widget _buildStyledField(TextEditingController c, String l, IconData i) => Padding(padding: const EdgeInsets.only(bottom: 15), child: TextField(controller: c, decoration: InputDecoration(labelText: l, prefixIcon: Icon(i, color: Colors.orange), border: OutlineInputBorder(borderRadius: BorderRadius.circular(15)))));
 }
