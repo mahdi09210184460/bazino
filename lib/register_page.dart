@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'home_page.dart';
+import 'dart:math';
 
 class RegisterPage extends StatefulWidget {
   const RegisterPage({super.key});
@@ -26,24 +27,30 @@ class _RegisterPageState extends State<RegisterPage> {
       final String phone = _phoneController.text.trim();
       final String name = _nameController.text.trim();
 
-      // 1. Save to Supabase (Sync user info)
+      // Check if user exists or generate new username
+      final existingUser = await _supabase.from('app_users').select('username').eq('phone', phone).maybeSingle();
+      
+      String username;
+      if (existingUser != null) {
+        username = existingUser['username'];
+      } else {
+        username = "PICO-${Random().nextInt(90000) + 10000}";
+      }
+
       await _supabase.from('app_users').upsert({
         'name': name,
         'phone': phone,
+        'username': username,
         'last_login': DateTime.now().toIso8601String(),
       }, onConflict: 'phone');
 
-      // 2. Save locally for persistence
       final prefs = await SharedPreferences.getInstance();
       await prefs.setString('userName', name);
       await prefs.setString('userPhone', phone);
-      await prefs.setString('userEmail', ''); // Clear email if any
+      await prefs.setString('userUsername', username);
 
       if (!mounted) return;
-      
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('خوش آمدید! ورود با موفقیت انجام شد')),
-      );
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('ورود با موفقیت انجام شد')));
 
       Navigator.pushReplacement(
         context,
@@ -56,9 +63,7 @@ class _RegisterPageState extends State<RegisterPage> {
         ),
       );
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('خطا در اتصال: ${e.toString()}')),
-      );
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('خطا در اتصال: ${e.toString()}')));
     } finally {
       setState(() => _isLoading = false);
     }
@@ -68,11 +73,7 @@ class _RegisterPageState extends State<RegisterPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.white,
-      appBar: AppBar(
-        title: const Text('ورود / ثبت نام سریع', style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold)),
-        backgroundColor: Colors.orange,
-        centerTitle: true,
-      ),
+      appBar: AppBar(title: const Text('ورود / ثبت نام', style: TextStyle(fontWeight: FontWeight.bold)), backgroundColor: Colors.orange, centerTitle: true),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(25.0),
         child: Form(
@@ -81,28 +82,16 @@ class _RegisterPageState extends State<RegisterPage> {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               const SizedBox(height: 30),
-              const Text(
-                'پیکو مارکت',
-                textAlign: TextAlign.center,
-                style: TextStyle(fontSize: 45, fontWeight: FontWeight.w900, color: Colors.orange),
-              ),
+              const Text('پیکو مارکت', textAlign: TextAlign.center, style: TextStyle(fontSize: 45, fontWeight: FontWeight.w900, color: Colors.orange)),
               const SizedBox(height: 40),
-              const Text('اطلاعات خود را وارد کنید:', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-              const SizedBox(height: 20),
               _buildTextField(_nameController, 'نام و نام خانوادگی', Icons.person),
               const SizedBox(height: 15),
-              _buildTextField(_phoneController, 'شماره تماس', Icons.phone, keyboardType: TextInputType.phone),
+              _buildTextField(_phoneController, 'شماره تماس (مثال: ۰۹۱۲۳۴۵۶۷۸۹)', Icons.phone, keyboardType: TextInputType.phone),
               const SizedBox(height: 30),
               ElevatedButton(
                 onPressed: _isLoading ? null : _registerAndEnter,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.orange,
-                  padding: const EdgeInsets.symmetric(vertical: 15),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                ),
-                child: _isLoading 
-                  ? const CircularProgressIndicator(color: Colors.black) 
-                  : const Text('ورود به برنامه', style: TextStyle(color: Colors.black, fontSize: 18, fontWeight: FontWeight.bold)),
+                style: ElevatedButton.styleFrom(backgroundColor: Colors.orange, padding: const EdgeInsets.symmetric(vertical: 15), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))),
+                child: _isLoading ? const CircularProgressIndicator(color: Colors.black) : const Text('ورود به برنامه', style: TextStyle(color: Colors.black, fontSize: 18, fontWeight: FontWeight.bold)),
               ),
             ],
           ),
@@ -116,17 +105,10 @@ class _RegisterPageState extends State<RegisterPage> {
       controller: controller,
       keyboardType: keyboardType,
       textAlign: TextAlign.right,
-      textDirection: TextDirection.rtl,
-      decoration: InputDecoration(
-        labelText: label,
-        prefixIcon: Icon(icon, color: Colors.orange),
-        filled: true,
-        fillColor: Colors.orange.withOpacity(0.05),
-        border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide.none),
-      ),
+      decoration: InputDecoration(labelText: label, prefixIcon: Icon(icon, color: Colors.orange), filled: true, fillColor: Colors.orange.withOpacity(0.05), border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide.none)),
       validator: (value) {
         if (value == null || value.trim().isEmpty) return 'این فیلد الزامی است';
-        if (keyboardType == TextInputType.phone && value.length < 11) return 'شماره تماس معتبر نیست';
+        if (keyboardType == TextInputType.phone && !RegExp(r'^09[0-9]{9}$').hasMatch(value.trim())) return 'شماره تماس معتبر نیست';
         return null;
       },
     );
