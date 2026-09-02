@@ -23,19 +23,14 @@ android {
     }
 
     signingConfigs {
-        create("release") {
-            if (keystoreProperties["keyAlias"] != null) {
+        // Only configure release signing if the keystore file exists
+        val keystorePath = keystoreProperties["storeFile"] as String?
+        if (keystorePath != null && file(keystorePath).exists()) {
+            create("release") {
                 keyAlias = keystoreProperties["keyAlias"] as String
                 keyPassword = keystoreProperties["keyPassword"] as String
-                storeFile = file(keystoreProperties["storeFile"] as String)
+                storeFile = file(keystorePath)
                 storePassword = keystoreProperties["storePassword"] as String
-            } else {
-                // Fallback to debug if keys are missing (useful for CI/others)
-                val debugConfig = signingConfigs.getByName("debug")
-                keyAlias = debugConfig.keyAlias
-                keyPassword = debugConfig.keyPassword
-                storeFile = debugConfig.storeFile
-                storePassword = debugConfig.storePassword
             }
         }
     }
@@ -50,7 +45,12 @@ android {
 
     buildTypes {
         release {
-            signingConfig = signingConfigs.getByName("release")
+            // Apply release signing only if it was configured above
+            val releaseConfig = signingConfigs.findByName("release")
+            if (releaseConfig != null) {
+                signingConfig = releaseConfig
+            }
+            
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
