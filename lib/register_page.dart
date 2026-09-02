@@ -12,7 +12,7 @@ class RegisterPage extends StatefulWidget {
 
 class _RegisterPageState extends State<RegisterPage> {
   final _formKey = GlobalKey<FormState>();
-  final TextEditingController _emailController = TextEditingController();
+  final TextEditingController _phoneController = TextEditingController();
   final TextEditingController _nameController = TextEditingController();
   final SupabaseClient _supabase = Supabase.instance.client;
 
@@ -23,24 +23,24 @@ class _RegisterPageState extends State<RegisterPage> {
     setState(() => _isLoading = true);
 
     try {
-      final String email = _emailController.text.trim();
+      final String phone = _phoneController.text.trim();
       final String name = _nameController.text.trim();
 
-      // 1. Save to Supabase (Custom users table for Admin to see)
+      // 1. Save to Supabase (Sync user info)
       await _supabase.from('app_users').upsert({
         'name': name,
-        'email': email,
+        'phone': phone,
         'last_login': DateTime.now().toIso8601String(),
-      }, onConflict: 'email');
+      }, onConflict: 'phone');
 
       // 2. Save locally for persistence
       final prefs = await SharedPreferences.getInstance();
       await prefs.setString('userName', name);
-      await prefs.setString('userEmail', email);
+      await prefs.setString('userPhone', phone);
+      await prefs.setString('userEmail', ''); // Clear email if any
 
       if (!mounted) return;
       
-      // 3. Show welcome and navigate
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('خوش آمدید! ورود با موفقیت انجام شد')),
       );
@@ -50,8 +50,8 @@ class _RegisterPageState extends State<RegisterPage> {
         MaterialPageRoute(
           builder: (context) => HomePage(
             userName: name,
-            userPhone: '',
-            userEmail: email,
+            userPhone: phone,
+            userEmail: '',
           ),
         ),
       );
@@ -91,7 +91,7 @@ class _RegisterPageState extends State<RegisterPage> {
               const SizedBox(height: 20),
               _buildTextField(_nameController, 'نام و نام خانوادگی', Icons.person),
               const SizedBox(height: 15),
-              _buildTextField(_emailController, 'آدرس ایمیل', Icons.email, keyboardType: TextInputType.emailAddress),
+              _buildTextField(_phoneController, 'شماره تماس', Icons.phone, keyboardType: TextInputType.phone),
               const SizedBox(height: 30),
               ElevatedButton(
                 onPressed: _isLoading ? null : _registerAndEnter,
@@ -102,13 +102,7 @@ class _RegisterPageState extends State<RegisterPage> {
                 ),
                 child: _isLoading 
                   ? const CircularProgressIndicator(color: Colors.black) 
-                  : const Text('ثبت‌نام و ورود به برنامه', style: TextStyle(color: Colors.black, fontSize: 18, fontWeight: FontWeight.bold)),
-              ),
-              const SizedBox(height: 20),
-              const Text(
-                'نیاز به تایید ایمیل نیست؛ مستقیماً وارد شوید.',
-                textAlign: TextAlign.center,
-                style: TextStyle(color: Colors.grey, fontSize: 12),
+                  : const Text('ورود به برنامه', style: TextStyle(color: Colors.black, fontSize: 18, fontWeight: FontWeight.bold)),
               ),
             ],
           ),
@@ -131,8 +125,8 @@ class _RegisterPageState extends State<RegisterPage> {
         border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide.none),
       ),
       validator: (value) {
-        if (value == null || value.isEmpty) return 'این فیلد الزامی است';
-        if (keyboardType == TextInputType.emailAddress && !value.contains('@')) return 'ایمیل نامعتبر است';
+        if (value == null || value.trim().isEmpty) return 'این فیلد الزامی است';
+        if (keyboardType == TextInputType.phone && value.length < 11) return 'شماره تماس معتبر نیست';
         return null;
       },
     );

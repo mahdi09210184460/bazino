@@ -8,8 +8,6 @@ import 'home_page.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   
-  // Initialize Supabase with your project URL
-  // NOTE: You still need to provide your 'anonKey' from Supabase settings
   await Supabase.initialize(
     url: 'https://zhrxagzgrohpdivgppxh.supabase.co',
     anonKey: 'sb_publishable_ea6nBoR7swULwyAqYtVyMw_vNyIBNWh', 
@@ -18,25 +16,25 @@ void main() async {
   final prefs = await SharedPreferences.getInstance();
   
   final String? name = prefs.getString('userName');
-  final String? email = prefs.getString('userEmail');
+  final String? phone = prefs.getString('userPhone');
 
   runApp(MyApp(
-    isLoggedIn: email != null && email.isNotEmpty,
+    isLoggedIn: phone != null && phone.isNotEmpty,
     userName: name ?? '',
-    userEmail: email ?? '',
+    userPhone: phone ?? '',
   ));
 }
 
 class MyApp extends StatelessWidget {
   final bool isLoggedIn;
   final String userName;
-  final String userEmail;
+  final String userPhone;
 
   const MyApp({
     super.key,
     required this.isLoggedIn,
     required this.userName,
-    required this.userEmail,
+    required this.userPhone,
   });
 
   @override
@@ -58,7 +56,7 @@ class MyApp extends StatelessWidget {
       ],
       locale: const Locale('fa', 'IR'),
       home: isLoggedIn 
-          ? HomePage(userName: userName, userPhone: '', userEmail: userEmail)
+          ? HomePage(userName: userName, userPhone: userPhone, userEmail: '')
           : const RegisterPage(),
     );
   }
