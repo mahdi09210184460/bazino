@@ -3,7 +3,6 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'register_page.dart';
-import 'dart:math';
 import 'dart:convert';
 
 class Product {
@@ -129,7 +128,6 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
-  // --- NEW PRIZES & WINNERS TAB ---
   Widget _buildPrizesContent() {
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16),
@@ -177,7 +175,6 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
-  // --- NEW LOTTERY JOIN TAB ---
   Widget _buildLotteryContent() {
     if (_lotteryStep == 1) return _buildLotteryStep1();
     if (_lotteryStep == 2) return _buildLotteryStep2();
@@ -197,7 +194,7 @@ class _HomePageState extends State<HomePage> {
               const SizedBox(height: 15),
               Text(_lotteryBannerTitle, style: const TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold), textAlign: TextAlign.center),
               const SizedBox(height: 10),
-              Text(_lotteryBannerPrize, style: const TextStyle(color: Colors.whiteee, fontSize: 16)),
+              Text(_lotteryBannerPrize, style: const TextStyle(color: Colors.white70, fontSize: 16)),
               const Divider(color: Colors.white24, height: 30),
               Row(mainAxisAlignment: MainAxisAlignment.center, children: [const Icon(Icons.timer, color: Colors.white70, size: 18), const SizedBox(width: 8), Text('زمان برگزاری: $_lotteryBannerDate', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold))]),
             ]),
@@ -223,7 +220,6 @@ class _HomePageState extends State<HomePage> {
     return Padding(padding: const EdgeInsets.only(bottom: 15), child: Row(children: [CircleAvatar(radius: 15, backgroundColor: Colors.orange, child: Text('$step', style: const TextStyle(color: Colors.black, fontSize: 12, fontWeight: FontWeight.bold))), const SizedBox(width: 15), Icon(icon, color: Colors.grey, size: 20), const SizedBox(width: 10), Text(text, style: const TextStyle(fontSize: 15, color: Colors.black87))]));
   }
 
-  // --- SUPPORT & OTHERS (Existing updated) ---
   IconData _getIcon(int code) {
     if (code == Icons.looks_one.codePoint) return Icons.looks_one;
     if (code == Icons.looks_two.codePoint) return Icons.looks_two;
@@ -388,38 +384,142 @@ class _AdminPanelState extends State<AdminPanel> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text('پنل مدیریت'), backgroundColor: Colors.orange, actions: [IconButton(icon: const Icon(Icons.save), onPressed: _save)]),
-      body: SingleChildScrollView(padding: const EdgeInsets.all(15), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        _adminSectionTitle('🎟 شرکت‌کنندگان قرعه‌کشی', Colors.purple, () async { await _supabase.from('participants').delete().neq('id', -1); setState(() => _tempParticipants.clear()); }),
-        ..._tempParticipants.reversed.map((p) => Card(child: ListTile(title: Text(p.name), subtitle: Text('${p.phone} | ${p.telegram}')))),
-        const Divider(height: 40),
-        _adminSectionTitle('📦 سفارشات', Colors.blue, () async { await _supabase.from('orders').delete().neq('id', -1); setState(() => _tempOrders.clear()); }),
-        ..._tempOrders.reversed.map((o) => Card(child: ListTile(title: Text(o.productTitle), subtitle: Text(o.status), trailing: Row(mainAxisSize: MainAxisSize.min, children: [IconButton(icon: const Icon(Icons.check, color: Colors.green), onPressed: () => setState(() => o.status = "انجام شده")), IconButton(icon: const Icon(Icons.close, color: Colors.red), onPressed: () => setState(() => o.status = "رد شده"))])))),
-        const Divider(height: 40),
-        _buildCategoryEditSection('🛒 محصولات اینستاگرام', _tempInsta, 'insta'),
-        _buildCategoryEditSection('✈️ محصولات تلگرام', _tempTele, 'tele'),
-        _buildCategoryEditSection('🌐 سایر خدمات', _tempOther, 'other'),
-        const Divider(height: 40),
-        const Text('🎧 پشتیبانی و درگاه', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-        TextField(controller: _inst, decoration: const InputDecoration(labelText: 'اینستاگرام')), TextField(controller: _tel, decoration: const InputDecoration(labelText: 'تلگرام')), TextField(controller: _mail, decoration: const InputDecoration(labelText: 'ایمیل')), TextField(controller: _pay, decoration: const InputDecoration(labelText: 'لینک پرداخت')), TextField(controller: _fee, decoration: const InputDecoration(labelText: 'ورودی قرعه‌کشی')),
-        const Divider(height: 40),
-        const Text('🎁 مدیریت جوایز', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-        ..._tempPrizes.asMap().entries.map((e) => Card(child: ListTile(title: Text(e.value.title), trailing: IconButton(icon: const Icon(Icons.delete, color: Colors.red), onPressed: () => setState(() => _tempPrizes.removeAt(e.key)))))),
-        ElevatedButton(onPressed: _addPrize, child: const Text('افزودن جایزه')),
-        const Divider(height: 40),
-        const Text('🏆 مدیریت برندگان', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-        ..._tempWinners.asMap().entries.map((e) => Card(child: ListTile(title: Text(e.value.name), trailing: IconButton(icon: const Icon(Icons.delete, color: Colors.red), onPressed: () => setState(() => _tempWinners.removeAt(e.key)))))),
-        ElevatedButton(onPressed: _addWinner, child: const Text('افزودن برنده')),
-        const Divider(height: 40),
-        const Text('🎫 تنظیمات بنر', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-        TextField(controller: _title, decoration: const InputDecoration(labelText: 'عنوان بنر')), TextField(controller: _prize, decoration: const InputDecoration(labelText: 'متن جایزه')), TextField(controller: _date, decoration: const InputDecoration(labelText: 'تاریخ قرعه‌کشی')),
-      ])),
+    return DefaultTabController(
+      length: 4,
+      child: Scaffold(
+        backgroundColor: Colors.grey[100],
+        appBar: AppBar(
+          title: const Text('پنل مدیریت پیشرفته', style: TextStyle(fontWeight: FontWeight.bold)),
+          backgroundColor: Colors.orange,
+          actions: [IconButton(icon: const Icon(Icons.save), onPressed: _save)],
+          bottom: const TabBar(
+            isScrollable: true,
+            labelColor: Colors.black,
+            unselectedLabelColor: Colors.black54,
+            indicatorColor: Colors.black,
+            tabs: [
+              Tab(icon: Icon(Icons.people), text: 'کاربران و سفارشات'),
+              Tab(icon: Icon(Icons.inventory), text: 'محصولات'),
+              Tab(icon: Icon(Icons.emoji_events), text: 'جوایز و برندگان'),
+              Tab(icon: Icon(Icons.settings), text: 'تنظیمات عمومی'),
+            ],
+          ),
+        ),
+        body: TabBarView(
+          children: [
+            _buildUsersTab(),
+            _buildProductsTab(),
+            _buildLotteryMgmtTab(),
+            _buildSettingsTab(),
+          ],
+        ),
+      ),
     );
   }
 
-  Widget _adminSectionTitle(String t, Color c, VoidCallback onDelete) { return Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [Text(t, style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: c)), TextButton.icon(onPressed: onDelete, icon: const Icon(Icons.delete_sweep, color: Colors.red), label: const Text('حذف همه', style: TextStyle(color: Colors.red)))]); }
-  Widget _buildCategoryEditSection(String t, List<Product> l, String k) { return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(t, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)), ...l.asMap().entries.map((e) => Card(child: ListTile(title: Text(e.value.title), trailing: IconButton(icon: const Icon(Icons.delete, color: Colors.red), onPressed: () => setState(() => l.removeAt(e.key)))))), ElevatedButton(onPressed: () => _addProduct(l, k), child: const Text('افزودن محصول'))]); }
+  Widget _buildUsersTab() {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(15),
+      child: Column(children: [
+        _adminCardSection('🎟 شرکت‌کنندگان قرعه‌کشی', Colors.purple, _tempParticipants.isEmpty, () async { await _supabase.from('participants').delete().neq('id', -1); setState(() => _tempParticipants.clear()); },
+          _tempParticipants.reversed.map((p) => ListTile(title: Text(p.name, style: const TextStyle(fontWeight: FontWeight.bold)), subtitle: Text('${p.phone} | ${p.telegram}'), trailing: const Icon(Icons.person_outline))).toList(),
+        ),
+        const SizedBox(height: 20),
+        _adminCardSection('📦 سفارشات کاربران', Colors.blue, _tempOrders.isEmpty, () async { await _supabase.from('orders').delete().neq('id', -1); setState(() => _tempOrders.clear()); },
+          _tempOrders.reversed.map((o) => ListTile(
+            title: Text(o.productTitle, style: const TextStyle(fontWeight: FontWeight.bold)),
+            subtitle: Text('وضعیت: ${o.status}\nکاربر: ${o.userName}'),
+            trailing: Row(mainAxisSize: MainAxisSize.min, children: [
+              IconButton(icon: const Icon(Icons.check_circle, color: Colors.green), onPressed: () => setState(() => o.status = "انجام شده")),
+              IconButton(icon: const Icon(Icons.cancel, color: Colors.red), onPressed: () => setState(() => o.status = "رد شده")),
+            ]),
+          )).toList(),
+        ),
+      ]),
+    );
+  }
+
+  Widget _buildProductsTab() {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(15),
+      child: Column(children: [
+        _buildCategoryMgmt('🛒 محصولات اینستاگرام', _tempInsta, 'insta'),
+        const SizedBox(height: 15),
+        _buildCategoryMgmt('✈️ محصولات تلگرام', _tempTele, 'tele'),
+        const SizedBox(height: 15),
+        _buildCategoryMgmt('🌐 سایر خدمات', _tempOther, 'other'),
+      ]),
+    );
+  }
+
+  Widget _buildLotteryMgmtTab() {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(15),
+      child: Column(children: [
+        _adminCardSection('🎁 مدیریت جوایز این دوره', Colors.orange, _tempPrizes.isEmpty, null,
+          _tempPrizes.asMap().entries.map((e) => ListTile(title: Text(e.value.title), subtitle: Text(e.value.amount), trailing: IconButton(icon: const Icon(Icons.delete, color: Colors.red), onPressed: () => setState(() => _tempPrizes.removeAt(e.key))))).toList(),
+          footer: ElevatedButton.icon(onPressed: _addPrize, icon: const Icon(Icons.add), label: const Text('افزودن جایزه جدید')),
+        ),
+        const SizedBox(height: 20),
+        _adminCardSection('🏆 لیست برندگان قبلی', Colors.green, _tempWinners.isEmpty, null,
+          _tempWinners.asMap().entries.map((e) => ListTile(title: Text(e.value.name), subtitle: Text(e.value.prize), trailing: IconButton(icon: const Icon(Icons.delete, color: Colors.red), onPressed: () => setState(() => _tempWinners.removeAt(e.key))))).toList(),
+          footer: ElevatedButton.icon(onPressed: _addWinner, icon: const Icon(Icons.add), label: const Text('افزودن برنده جدید')),
+        ),
+      ]),
+    );
+  }
+
+  Widget _buildSettingsTab() {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(20),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        _sectionTitle('🎧 اطلاعات پشتیبانی'),
+        _buildStyledField(_inst, 'آیدی اینستاگرام', Icons.camera_alt),
+        _buildStyledField(_tel, 'آیدی تلگرام', Icons.send),
+        _buildStyledField(_mail, 'ایمیل پشتیبانی', Icons.email),
+        const SizedBox(height: 30),
+        _sectionTitle('🔗 درگاه و قرعه‌کشی'),
+        _buildStyledField(_pay, 'لینک درگاه پرداخت مستقیم', Icons.link),
+        _buildStyledField(_fee, 'مبلغ ورودی قرعه‌کشی', Icons.payments),
+        const SizedBox(height: 30),
+        _sectionTitle('🎫 بنر قرعه‌کشی'),
+        _buildStyledField(_title, 'عنوان بنر', Icons.title),
+        _buildStyledField(_prize, 'متن جایزه ویژه', Icons.card_giftcard),
+        _buildStyledField(_date, 'تاریخ برگزاری', Icons.event),
+      ]),
+    );
+  }
+
+  Widget _adminCardSection(String title, Color color, bool isEmpty, VoidCallback? onClear, List<Widget> children, {Widget? footer}) {
+    return Card(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+      elevation: 3,
+      child: Column(children: [
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 10),
+          decoration: BoxDecoration(color: color.withOpacity(0.1), borderRadius: const BorderRadius.vertical(top: Radius.circular(20))),
+          child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+            Text(title, style: TextStyle(fontWeight: FontWeight.bold, color: color, fontSize: 16)),
+            if (onClear != null) IconButton(icon: const Icon(Icons.delete_sweep, color: Colors.red), onPressed: onClear),
+          ]),
+        ),
+        if (isEmpty) const Padding(padding: EdgeInsets.all(20), child: Text('موردی برای نمایش وجود ندارد', style: TextStyle(color: Colors.grey))),
+        ...children,
+        if (footer != null) Padding(padding: const EdgeInsets.all(10), child: footer),
+      ]),
+    );
+  }
+
+  Widget _buildCategoryMgmt(String title, List<Product> list, String key) {
+    return _adminCardSection(title, Colors.orange, list.isEmpty, null,
+      list.asMap().entries.map((e) => ListTile(title: Text(e.value.title), subtitle: Text(e.value.price), trailing: IconButton(icon: const Icon(Icons.delete, color: Colors.red), onPressed: () => setState(() => list.removeAt(e.key))))).toList(),
+      footer: ElevatedButton.icon(onPressed: () => _addProduct(list, key), icon: const Icon(Icons.add_shopping_cart), label: const Text('افزودن محصول جدید')),
+    );
+  }
+
+  Widget _sectionTitle(String t) => Padding(padding: const EdgeInsets.only(bottom: 10), child: Text(t, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.orange)));
+  Widget _buildStyledField(TextEditingController c, String l, IconData i) => Padding(padding: const EdgeInsets.only(bottom: 15), child: TextField(controller: c, decoration: InputDecoration(labelText: l, prefixIcon: Icon(i, color: Colors.orange), border: OutlineInputBorder(borderRadius: BorderRadius.circular(15)), filled: true, fillColor: Colors.white)));
+
   void _addWinner() {
     TextEditingController n = TextEditingController(), p = TextEditingController(), d = TextEditingController();
     showDialog(context: context, builder: (context) => AlertDialog(title: const Text('افزودن برنده'), content: Column(mainAxisSize: MainAxisSize.min, children: [TextField(controller: n, decoration: const InputDecoration(labelText: 'نام')), TextField(controller: p, decoration: const InputDecoration(labelText: 'جایزه')), TextField(controller: d, decoration: const InputDecoration(labelText: 'تاریخ'))]), actions: [TextButton(onPressed: () => Navigator.pop(context), child: const Text('لغو')), ElevatedButton(onPressed: () { if (n.text.isEmpty) return; setState(() => _tempWinners.add(Winner(name: n.text, prize: p.text, date: d.text))); Navigator.pop(context); }, child: const Text('افزودن'))]));
