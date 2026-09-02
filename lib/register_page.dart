@@ -14,69 +14,50 @@ class _RegisterPageState extends State<RegisterPage> {
   final _formKey = GlobalKey<FormState>();
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _nameController = TextEditingController();
-  final TextEditingController _codeController = TextEditingController();
   final SupabaseClient _supabase = Supabase.instance.client;
 
-  bool _isCodeSent = false;
   bool _isLoading = false;
 
-  Future<void> _sendOTP() async {
+  Future<void> _registerAndEnter() async {
     if (!_formKey.currentState!.validate()) return;
     setState(() => _isLoading = true);
 
     try {
-      // Send OTP via Supabase
-      await _supabase.auth.signInWithOtp(
-        email: _emailController.text.trim(),
-        shouldCreateUser: true,
-      );
+      final String email = _emailController.text.trim();
+      final String name = _nameController.text.trim();
+
+      // 1. Save to Supabase (Custom users table for Admin to see)
+      await _supabase.from('app_users').upsert({
+        'name': name,
+        'email': email,
+        'last_login': DateTime.now().toIso8601String(),
+      }, onConflict: 'email');
+
+      // 2. Save locally for persistence
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString('userName', name);
+      await prefs.setString('userEmail', email);
+
+      if (!mounted) return;
       
-      setState(() => _isCodeSent = true);
+      // 3. Show welcome and navigate
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('کد تایید به ایمیل شما ارسال شد')),
-      );
-    } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('خطا: ${e.toString()}')),
-      );
-    } finally {
-      setState(() => _isLoading = false);
-    }
-  }
-
-  Future<void> _verifyOTP() async {
-    if (_codeController.text.length < 6) return;
-    setState(() => _isLoading = true);
-
-    try {
-      final AuthResponse res = await _supabase.auth.verifyOTP(
-        type: OtpType.magiclink,
-        token: _codeController.text.trim(),
-        email: _emailController.text.trim(),
+        const SnackBar(content: Text('خوش آمدید! ورود با موفقیت انجام شد')),
       );
 
-      if (res.session != null) {
-        // Save user data locally
-        final prefs = await SharedPreferences.getInstance();
-        await prefs.setString('userName', _nameController.text.isNotEmpty ? _nameController.text : 'کاربر پیکو');
-        await prefs.setString('userEmail', _emailController.text.trim());
-        await prefs.setString('userPhone', ''); // Phone removed
-
-        if (!mounted) return;
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(
-            builder: (context) => HomePage(
-              userName: prefs.getString('userName') ?? '',
-              userPhone: '',
-              userEmail: _emailController.text.trim(),
-            ),
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(
+          builder: (context) => HomePage(
+            userName: name,
+            userPhone: '',
+            userEmail: email,
           ),
-        );
-      }
+        ),
+      );
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('کد تایید اشتباه است')),
+        SnackBar(content: Text('خطا در اتصال: ${e.toString()}')),
       );
     } finally {
       setState(() => _isLoading = false);
@@ -88,7 +69,7 @@ class _RegisterPageState extends State<RegisterPage> {
     return Scaffold(
       backgroundColor: Colors.white,
       appBar: AppBar(
-        title: const Text('ورود / ثبت نام', style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold)),
+        title: const Text('ورود / ثبت نام سریع', style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold)),
         backgroundColor: Colors.orange,
         centerTitle: true,
       ),
@@ -106,37 +87,29 @@ class _RegisterPageState extends State<RegisterPage> {
                 style: TextStyle(fontSize: 45, fontWeight: FontWeight.w900, color: Colors.orange),
               ),
               const SizedBox(height: 40),
-              if (!_isCodeSent) ...[
-                const Text('لطفاً اطلاعات خود را وارد کنید:', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-                const SizedBox(height: 20),
-                _buildTextField(_nameController, 'نام و نام خانوادگی (برای اولین ثبت نام)', Icons.person),
-                const SizedBox(height: 15),
-                _buildTextField(_emailController, 'آدرس ایمیل', Icons.email, keyboardType: TextInputType.emailAddress),
-                const SizedBox(height: 30),
-                ElevatedButton(
-                  onPressed: _isLoading ? null : _sendOTP,
-                  style: ElevatedButton.styleFrom(backgroundColor: Colors.orange, padding: const EdgeInsets.symmetric(vertical: 15)),
-                  child: _isLoading 
-                    ? const CircularProgressIndicator(color: Colors.black) 
-                    : const Text('دریافت کد تایید', style: TextStyle(color: Colors.black, fontSize: 18, fontWeight: FontWeight.bold)),
+              const Text('اطلاعات خود را وارد کنید:', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+              const SizedBox(height: 20),
+              _buildTextField(_nameController, 'نام و نام خانوادگی', Icons.person),
+              const SizedBox(height: 15),
+              _buildTextField(_emailController, 'آدرس ایمیل', Icons.email, keyboardType: TextInputType.emailAddress),
+              const SizedBox(height: 30),
+              ElevatedButton(
+                onPressed: _isLoading ? null : _registerAndEnter,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.orange,
+                  padding: const EdgeInsets.symmetric(vertical: 15),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                 ),
-              ] else ...[
-                const Text('کد ۶ رقمی ارسال شده به ایمیل را وارد کنید:', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-                const SizedBox(height: 20),
-                _buildTextField(_codeController, 'کد ۶ رقمی', Icons.lock_clock, keyboardType: TextInputType.number),
-                const SizedBox(height: 30),
-                ElevatedButton(
-                  onPressed: _isLoading ? null : _verifyOTP,
-                  style: ElevatedButton.styleFrom(backgroundColor: Colors.green, padding: const EdgeInsets.symmetric(vertical: 15)),
-                  child: _isLoading 
-                    ? const CircularProgressIndicator(color: Colors.white) 
-                    : const Text('تایید و ورود به برنامه', style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
-                ),
-                TextButton(
-                  onPressed: () => setState(() => _isCodeSent = false),
-                  child: const Text('تغییر ایمیل', style: TextStyle(color: Colors.orange)),
-                ),
-              ],
+                child: _isLoading 
+                  ? const CircularProgressIndicator(color: Colors.black) 
+                  : const Text('ثبت‌نام و ورود به برنامه', style: TextStyle(color: Colors.black, fontSize: 18, fontWeight: FontWeight.bold)),
+              ),
+              const SizedBox(height: 20),
+              const Text(
+                'نیاز به تایید ایمیل نیست؛ مستقیماً وارد شوید.',
+                textAlign: TextAlign.center,
+                style: TextStyle(color: Colors.grey, fontSize: 12),
+              ),
             ],
           ),
         ),
