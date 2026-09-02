@@ -26,9 +26,9 @@ class Product {
   Map<String, dynamic> toJson() => {'title': title, 'price': price, 'quality': quality, 'image_url': imageUrl, 'category': category};
   factory Product.fromJson(Map<String, dynamic> json) => Product(
     id: json['id'],
-    title: json['title'], 
-    price: json['price'], 
-    quality: json['quality'], 
+    title: json['title'] ?? '', 
+    price: json['price'] ?? '', 
+    quality: json['quality'] ?? '', 
     imageUrl: json['image_url'] ?? '',
     category: json['category'] ?? 'other',
   );
@@ -43,7 +43,7 @@ class Winner {
   Winner({this.id, required this.name, required this.prize, required this.date});
 
   Map<String, dynamic> toJson() => {'name': name, 'prize': prize, 'date': date};
-  factory Winner.fromJson(Map<String, dynamic> json) => Winner(id: json['id'], name: json['name'], prize: json['prize'], date: json['date']);
+  factory Winner.fromJson(Map<String, dynamic> json) => Winner(id: json['id'], name: json['name'] ?? '', prize: json['prize'] ?? '', date: json['date'] ?? '');
 }
 
 class PrizeRecord {
@@ -58,10 +58,10 @@ class PrizeRecord {
   Map<String, dynamic> toJson() => {'title': title, 'amount': amount, 'icon_code': iconCode, 'color_value': colorValue};
   factory PrizeRecord.fromJson(Map<String, dynamic> json) => PrizeRecord(
     id: json['id'],
-    title: json['title'], 
-    amount: json['amount'], 
-    iconCode: json['icon_code'], 
-    colorValue: json['color_value']
+    title: json['title'] ?? '', 
+    amount: json['amount'] ?? '', 
+    iconCode: json['icon_code'] ?? Icons.card_giftcard.codePoint, 
+    colorValue: json['color_value'] ?? Colors.orange.value
   );
 }
 
@@ -75,7 +75,7 @@ class LotteryParticipant {
   LotteryParticipant({this.id, required this.name, required this.phone, required this.telegram, required this.date});
 
   Map<String, dynamic> toJson() => {'name': name, 'phone': phone, 'telegram': telegram, 'date': date};
-  factory LotteryParticipant.fromJson(Map<String, dynamic> json) => LotteryParticipant(id: json['id'], name: json['name'], phone: json['phone'], telegram: json['telegram'], date: json['date']);
+  factory LotteryParticipant.fromJson(Map<String, dynamic> json) => LotteryParticipant(id: json['id'], name: json['name'] ?? '', phone: json['phone'] ?? '', telegram: json['telegram'] ?? '', date: json['date'] ?? '');
 }
 
 class OrderRecord {
@@ -113,14 +113,14 @@ class OrderRecord {
   };
   factory OrderRecord.fromJson(Map<String, dynamic> json) => OrderRecord(
     id: json['id'],
-    userName: json['user_name'], 
-    userPhone: json['user_phone'], 
-    productTitle: json['product_title'], 
-    pageID: json['page_id'], 
-    quantity: json['quantity'], 
-    requestDetails: json['request_details'], 
-    status: json['status'], 
-    date: json['date']
+    userName: json['user_name'] ?? '', 
+    userPhone: json['user_phone'] ?? '', 
+    productTitle: json['product_title'] ?? '', 
+    pageID: json['page_id'] ?? '', 
+    quantity: json['quantity'] ?? '', 
+    requestDetails: json['request_details'] ?? '', 
+    status: json['status'] ?? "در انتظار بررسی", 
+    date: json['date'] ?? ''
   );
 }
 
@@ -145,9 +145,9 @@ class _HomePageState extends State<HomePage> {
   final String _adminEmail = "aminsoltani13920@gmail.com";
   final SupabaseClient _supabase = Supabase.instance.client;
 
-  String _instaID = "bazino_app";
-  String _telegramID = "@bazino_support";
-  String _supportEmail = "support@bazino.ir";
+  String _instaID = "pico_market_app";
+  String _telegramID = "@pico_support";
+  String _supportEmail = "support@pico.ir";
   String _paymentLink = "https://zarrinpal.com";
 
   List<Product> _instaProducts = [];
@@ -176,9 +176,9 @@ class _HomePageState extends State<HomePage> {
   }
 
   Future<void> _fetchSupabaseData() async {
+    if (!mounted) return;
     setState(() => _isLoading = true);
     try {
-      // Fetch Config
       final configRes = await _supabase.from('app_config').select();
       for (var item in configRes) {
         if (item['key'] == 'lottery_banner_title') _lotteryBannerTitle = item['value'];
@@ -190,32 +190,27 @@ class _HomePageState extends State<HomePage> {
         if (item['key'] == 'payment_link') _paymentLink = item['value'];
       }
 
-      // Fetch Products
       final productsRes = await _supabase.from('products').select();
       _instaProducts = productsRes.where((p) => p['category'] == 'insta').map((e) => Product.fromJson(e)).toList();
       _telegramProducts = productsRes.where((p) => p['category'] == 'tele').map((e) => Product.fromJson(e)).toList();
       _otherProducts = productsRes.where((p) => p['category'] == 'other').map((e) => Product.fromJson(e)).toList();
 
-      // Fetch Winners
       final winnersRes = await _supabase.from('winners').select().order('created_at', ascending: false);
       _lotteryWinners = winnersRes.map((e) => Winner.fromJson(e)).toList();
 
-      // Fetch Prizes
       final prizesRes = await _supabase.from('prizes').select();
       _prizes = prizesRes.map((e) => PrizeRecord.fromJson(e)).toList();
 
-      // Fetch Participants
       final participantsRes = await _supabase.from('participants').select().order('created_at', ascending: false);
       _lotteryParticipants = participantsRes.map((e) => LotteryParticipant.fromJson(e)).toList();
 
-      // Fetch Orders
       final ordersRes = await _supabase.from('orders').select().order('created_at', ascending: false);
       _allOrders = ordersRes.map((e) => OrderRecord.fromJson(e)).toList();
 
     } catch (e) {
       debugPrint('Supabase Error: $e');
     }
-    setState(() => _isLoading = false);
+    if (mounted) setState(() => _isLoading = false);
   }
 
   void _onItemTapped(int index) {
@@ -423,7 +418,7 @@ class _HomePageState extends State<HomePage> {
           ElevatedButton(
             onPressed: () {
               _lNameController.text = widget.userName;
-              _lPhoneController.text = ""; // Since userPhone was cleared in main.dart
+              _lPhoneController.text = ""; 
               setState(() => _lotteryStep = 1);
             },
             style: ElevatedButton.styleFrom(backgroundColor: Colors.orange, foregroundColor: Colors.black, padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 15), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15))),
@@ -447,7 +442,7 @@ class _HomePageState extends State<HomePage> {
           const SizedBox(height: 30),
           ElevatedButton(
             onPressed: () {
-              if (_lNameController.text.isEmpty || _lPhoneController.text.isEmpty) {
+              if (_lNameController.text.trim().isEmpty || _lPhoneController.text.trim().isEmpty) {
                 ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('لطفاً تمامی فیلدها را پر کنید')));
                 return;
               }
@@ -496,19 +491,19 @@ class _HomePageState extends State<HomePage> {
           const SizedBox(height: 30),
           ElevatedButton(
             onPressed: () async {
-              if (_lTelegramController.text.isEmpty) {
+              if (_lTelegramController.text.trim().isEmpty) {
                 ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('لطفاً آیدی تلگرام را وارد کنید')));
                 return;
               }
               
               await _supabase.from('participants').insert({
-                'name': _lNameController.text,
-                'phone': _lPhoneController.text,
-                'telegram': _lTelegramController.text,
+                'name': _lNameController.text.trim(),
+                'phone': _lPhoneController.text.trim(),
+                'telegram': _lTelegramController.text.trim(),
                 'date': DateTime.now().toString().split('.')[0],
               });
 
-              _fetchSupabaseData();
+              _fetchSupabaseData(); 
               if (!mounted) return;
               ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('درخواست شما با موفقیت ثبت شد.')));
               setState(() => _lotteryStep = 0);
@@ -544,7 +539,7 @@ class _HomePageState extends State<HomePage> {
     if (_allOrders.isEmpty) return const Center(child: Text('هنوز سفارشی ثبت نکرده‌اید.'));
     return ListView(
       padding: const EdgeInsets.all(15), 
-      children: _allOrders.where((o) => o.userPhone == widget.userPhone || o.userName == widget.userName).map((o) => _buildOrderItem(o.productTitle, 'سفارش در تاریخ ${o.date}', o.status, Colors.blue)).toList(),
+      children: _allOrders.where((o) => o.userEmail == widget.userEmail || o.userName == widget.userName).map((o) => _buildOrderItem(o.productTitle, 'سفارش در تاریخ ${o.date}', o.status, Colors.blue)).toList(),
     );
   }
 
@@ -672,18 +667,18 @@ class _HomePageState extends State<HomePage> {
           TextButton(onPressed: () => Navigator.pop(context), child: const Text('انصراف')),
           ElevatedButton(
             onPressed: () async {
-              if (nameCtrl.text.isEmpty || phoneCtrl.text.isEmpty || pageIDCtrl.text.isEmpty || quantityCtrl.text.isEmpty) {
+              if (nameCtrl.text.trim().isEmpty || phoneCtrl.text.trim().isEmpty || pageIDCtrl.text.trim().isEmpty || quantityCtrl.text.trim().isEmpty) {
                 ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('لطفاً تمامی فیلدها را پر کنید')));
                 return;
               }
               
               await _supabase.from('orders').insert({
-                'user_name': nameCtrl.text,
-                'user_phone': phoneCtrl.text,
+                'user_name': nameCtrl.text.trim(),
+                'user_phone': phoneCtrl.text.trim(),
                 'product_title': product.title,
-                'page_id': pageIDCtrl.text,
-                'quantity': quantityCtrl.text,
-                'request_details': requestCtrl.text,
+                'page_id': pageIDCtrl.text.trim(),
+                'quantity': quantityCtrl.text.trim(),
+                'request_details': requestCtrl.text.trim(),
                 'date': DateTime.now().toString().split('.')[0],
               });
 
@@ -798,14 +793,19 @@ class _AdminPanelState extends State<AdminPanel> {
 
   Future<void> _saveToSupabase() async {
     try {
+      if (_titleController.text.trim().isEmpty || _prizeController.text.trim().isEmpty || _dateController.text.trim().isEmpty || _instController.text.trim().isEmpty || _teleController.text.trim().isEmpty || _mailController.text.trim().isEmpty || _payController.text.trim().isEmpty) {
+         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('لطفاً تمامی فیلدها را پر کنید')));
+         return;
+      }
+
       await _supabase.from('app_config').upsert([
-        {'key': 'lottery_banner_title', 'value': _titleController.text},
-        {'key': 'lottery_banner_prize', 'value': _prizeController.text},
-        {'key': 'lottery_banner_date', 'value': _dateController.text},
-        {'key': 'insta_id', 'value': _instController.text},
-        {'key': 'telegram_id', 'value': _teleController.text},
-        {'key': 'support_email', 'value': _mailController.text},
-        {'key': 'payment_link', 'value': _payController.text},
+        {'key': 'lottery_banner_title', 'value': _titleController.text.trim()},
+        {'key': 'lottery_banner_prize', 'value': _prizeController.text.trim()},
+        {'key': 'lottery_banner_date', 'value': _dateController.text.trim()},
+        {'key': 'insta_id', 'value': _instController.text.trim()},
+        {'key': 'telegram_id', 'value': _teleController.text.trim()},
+        {'key': 'support_email', 'value': _mailController.text.trim()},
+        {'key': 'payment_link', 'value': _payController.text.trim()},
       ], onConflict: 'key');
 
       await _supabase.from('products').delete().neq('id', -1);
@@ -824,7 +824,7 @@ class _AdminPanelState extends State<AdminPanel> {
       }
 
       if (!mounted) return;
-      widget.onUpdate(_tempInsta, _tempTele, _tempOther, _tempWinners, _tempPrizes, widget.lotteryParticipants, _tempOrders, _titleController.text, _prizeController.text, _dateController.text, _instController.text, _teleController.text, _mailController.text, _payController.text);
+      widget.onUpdate(_tempInsta, _tempTele, _tempOther, _tempWinners, _tempPrizes, widget.lotteryParticipants, _tempOrders, _titleController.text.trim(), _prizeController.text.trim(), _dateController.text.trim(), _instController.text.trim(), _teleController.text.trim(), _mailController.text.trim(), _payController.text.trim());
       Navigator.pop(context);
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('تمامی اطلاعات با موفقیت همگام‌سازی شد.')));
     } catch (e) {
@@ -897,26 +897,26 @@ class _AdminPanelState extends State<AdminPanel> {
   Widget _statusButton(int index, String status, Color color) { return ElevatedButton(onPressed: () => setState(() => _tempOrders[index].status = status), style: ElevatedButton.styleFrom(backgroundColor: color, foregroundColor: Colors.white, padding: const EdgeInsets.symmetric(horizontal: 10), minimumSize: const Size(60, 30), textStyle: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold)), child: Text(status)); }
   void _editWinner(int index) {
     Winner w = _tempWinners[index]; TextEditingController nCtrl = TextEditingController(text: w.name), pCtrl = TextEditingController(text: w.prize), dCtrl = TextEditingController(text: w.date);
-    showDialog(context: context, builder: (context) => AlertDialog(title: const Text('ویرایش برنده'), content: Column(mainAxisSize: MainAxisSize.min, children: [TextField(controller: nCtrl, decoration: const InputDecoration(labelText: 'نام')), TextField(controller: pCtrl, decoration: const InputDecoration(labelText: 'جایزه')), TextField(controller: dCtrl, decoration: const InputDecoration(labelText: 'تاریخ'))]), actions: [TextButton(onPressed: () => Navigator.pop(context), child: const Text('لغو')), ElevatedButton(onPressed: () { if (nCtrl.text.isEmpty || pCtrl.text.isEmpty || dCtrl.text.isEmpty) return; setState(() => _tempWinners[index] = Winner(name: nCtrl.text, prize: pCtrl.text, date: dCtrl.text)); Navigator.pop(context); }, child: const Text('ثبت'))]));
+    showDialog(context: context, builder: (context) => AlertDialog(title: const Text('ویرایش برنده'), content: Column(mainAxisSize: MyAxisSize.min, children: [TextField(controller: nCtrl, decoration: const InputDecoration(labelText: 'نام')), TextField(controller: pCtrl, decoration: const InputDecoration(labelText: 'جایزه')), TextField(controller: dCtrl, decoration: const InputDecoration(labelText: 'تاریخ'))]), actions: [TextButton(onPressed: () => Navigator.pop(context), child: const Text('لغو')), ElevatedButton(onPressed: () { if (nCtrl.text.trim().isEmpty || pCtrl.text.trim().isEmpty || dCtrl.text.trim().isEmpty) return; setState(() => _tempWinners[index] = Winner(name: nCtrl.text.trim(), prize: pCtrl.text.trim(), date: dCtrl.text.trim())); Navigator.pop(context); }, child: const Text('ثبت'))]));
   }
   void _addWinner() {
     TextEditingController nCtrl = TextEditingController(), pCtrl = TextEditingController(), dCtrl = TextEditingController();
-    showDialog(context: context, builder: (context) => AlertDialog(title: const Text('افزودن برنده'), content: Column(mainAxisSize: MainAxisSize.min, children: [TextField(controller: nCtrl, decoration: const InputDecoration(labelText: 'نام')), TextField(controller: pCtrl, decoration: const InputDecoration(labelText: 'جایزه')), TextField(controller: dCtrl, decoration: const InputDecoration(labelText: 'تاریخ'))]), actions: [TextButton(onPressed: () => Navigator.pop(context), child: const Text('لغو')), ElevatedButton(onPressed: () { if (nCtrl.text.isEmpty || pCtrl.text.isEmpty || dCtrl.text.isEmpty) return; setState(() => _tempWinners.add(Winner(name: nCtrl.text, prize: pCtrl.text, date: dCtrl.text))); Navigator.pop(context); }, child: const Text('افزودن'))]));
+    showDialog(context: context, builder: (context) => AlertDialog(title: const Text('افزودن برنده'), content: Column(mainAxisSize: MyAxisSize.min, children: [TextField(controller: nCtrl, decoration: const InputDecoration(labelText: 'نام')), TextField(controller: pCtrl, decoration: const InputDecoration(labelText: 'جایزه')), TextField(controller: dCtrl, decoration: const InputDecoration(labelText: 'تاریخ'))]), actions: [TextButton(onPressed: () => Navigator.pop(context), child: const Text('لغو')), ElevatedButton(onPressed: () { if (nCtrl.text.trim().isEmpty || pCtrl.text.trim().isEmpty || dCtrl.text.trim().isEmpty) return; setState(() => _tempWinners.add(Winner(name: nCtrl.text.trim(), prize: pCtrl.text.trim(), date: dCtrl.text.trim()))); Navigator.pop(context); }, child: const Text('افزودن'))]));
   }
   void _editPrize(int index) {
     PrizeRecord p = _tempPrizes[index]; TextEditingController tCtrl = TextEditingController(text: p.title), aCtrl = TextEditingController(text: p.amount);
-    showDialog(context: context, builder: (context) => AlertDialog(title: const Text('ویرایش جایزه'), content: Column(mainAxisSize: MainAxisSize.min, children: [TextField(controller: tCtrl, decoration: const InputDecoration(labelText: 'عنوان')), TextField(controller: aCtrl, decoration: const InputDecoration(labelText: 'مبلغ'))]), actions: [TextButton(onPressed: () => Navigator.pop(context), child: const Text('لغو')), ElevatedButton(onPressed: () { if (tCtrl.text.isEmpty || aCtrl.text.isEmpty) return; setState(() { _tempPrizes[index].title = tCtrl.text; _tempPrizes[index].amount = aCtrl.text; }); Navigator.pop(context); }, child: const Text('ثبت'))]));
+    showDialog(context: context, builder: (context) => AlertDialog(title: const Text('ویرایش جایزه'), content: Column(mainAxisSize: MyAxisSize.min, children: [TextField(controller: tCtrl, decoration: const InputDecoration(labelText: 'عنوان')), TextField(controller: aCtrl, decoration: const InputDecoration(labelText: 'مبلغ'))]), actions: [TextButton(onPressed: () => Navigator.pop(context), child: const Text('لغو')), ElevatedButton(onPressed: () { if (tCtrl.text.trim().isEmpty || aCtrl.text.trim().isEmpty) return; setState(() { _tempPrizes[index].title = tCtrl.text.trim(); _tempPrizes[index].amount = aCtrl.text.trim(); }); Navigator.pop(context); }, child: const Text('ثبت'))]));
   }
   void _addPrize() {
     TextEditingController tCtrl = TextEditingController(), aCtrl = TextEditingController();
-    showDialog(context: context, builder: (context) => AlertDialog(title: const Text('افزودن جایزه'), content: Column(mainAxisSize: MainAxisSize.min, children: [TextField(controller: tCtrl, decoration: const InputDecoration(labelText: 'عنوان')), TextField(controller: aCtrl, decoration: const InputDecoration(labelText: 'مبلغ'))]), actions: [TextButton(onPressed: () => Navigator.pop(context), child: const Text('لغو')), ElevatedButton(onPressed: () { if (tCtrl.text.isEmpty || aCtrl.text.isEmpty) return; setState(() => _tempPrizes.add(PrizeRecord(title: tCtrl.text, amount: aCtrl.text, iconCode: Icons.card_giftcard.codePoint, colorValue: Colors.orangeAccent.value))); Navigator.pop(context); }, child: const Text('افزودن'))]));
+    showDialog(context: context, builder: (context) => AlertDialog(title: const Text('افزودن جایزه'), content: Column(mainAxisSize: MyAxisSize.min, children: [TextField(controller: tCtrl, decoration: const InputDecoration(labelText: 'عنوان')), TextField(controller: aCtrl, decoration: const InputDecoration(labelText: 'مبلغ'))]), actions: [TextButton(onPressed: () => Navigator.pop(context), child: const Text('لغو')), ElevatedButton(onPressed: () { if (tCtrl.text.trim().isEmpty || aCtrl.text.trim().isEmpty) return; setState(() => _tempPrizes.add(PrizeRecord(title: tCtrl.text.trim(), amount: aCtrl.text.trim(), iconCode: Icons.card_giftcard.codePoint, colorValue: Colors.orangeAccent.value))); Navigator.pop(context); }, child: const Text('افزودن'))]));
   }
   void _addProduct(List<Product> list, String category) {
     TextEditingController tCtrl = TextEditingController(), pCtrl = TextEditingController(), qCtrl = TextEditingController();
-    showDialog(context: context, builder: (context) => AlertDialog(title: const Text('افزودن محصول'), content: Column(mainAxisSize: MainAxisSize.min, children: [TextField(controller: tCtrl, decoration: const InputDecoration(labelText: 'عنوان')), TextField(controller: pCtrl, decoration: const InputDecoration(labelText: 'قیمت')), TextField(controller: qCtrl, decoration: const InputDecoration(labelText: 'کیفیت'))]), actions: [TextButton(onPressed: () => Navigator.pop(context), child: const Text('لغو')), ElevatedButton(onPressed: () { if (tCtrl.text.isEmpty || pCtrl.text.isEmpty) return; setState(() => list.add(Product(title: tCtrl.text, price: pCtrl.text, quality: qCtrl.text, imageUrl: category == 'insta' ? 'https://cdn-icons-png.flaticon.com/512/174/174855.png' : (category == 'tele' ? 'https://cdn-icons-png.flaticon.com/512/2111/2111646.png' : 'https://cdn-icons-png.flaticon.com/512/174/174883.png'), category: category))); Navigator.pop(context); }, child: const Text('افزودن'))]));
+    showDialog(context: context, builder: (context) => AlertDialog(title: const Text('افزودن محصول'), content: Column(mainAxisSize: MyAxisSize.min, children: [TextField(controller: tCtrl, decoration: const InputDecoration(labelText: 'عنوان')), TextField(controller: pCtrl, decoration: const InputDecoration(labelText: 'قیمت')), TextField(controller: qCtrl, decoration: const InputDecoration(labelText: 'کیفیت'))]), actions: [TextButton(onPressed: () => Navigator.pop(context), child: const Text('لغو')), ElevatedButton(onPressed: () { if (tCtrl.text.trim().isEmpty || pCtrl.text.trim().isEmpty) return; setState(() => list.add(Product(title: tCtrl.text.trim(), price: pCtrl.text.trim(), quality: qCtrl.text.trim(), imageUrl: category == 'insta' ? 'https://cdn-icons-png.flaticon.com/512/174/174855.png' : (category == 'tele' ? 'https://cdn-icons-png.flaticon.com/512/2111/2111646.png' : 'https://cdn-icons-png.flaticon.com/512/174/174883.png'), category: category))); Navigator.pop(context); }, child: const Text('افزودن'))]));
   }
   void _editProduct(int index, List<Product> list) {
     Product p = list[index]; TextEditingController tCtrl = TextEditingController(text: p.title), pCtrl = TextEditingController(text: p.price);
-    showDialog(context: context, builder: (context) => AlertDialog(title: const Text('ویرایش محصول'), content: Column(mainAxisSize: MainAxisSize.min, children: [TextField(controller: tCtrl, decoration: const InputDecoration(labelText: 'عنوان')), TextField(controller: pCtrl, decoration: const InputDecoration(labelText: 'قیمت'))]), actions: [TextButton(onPressed: () => Navigator.pop(context), child: const Text('لغو')), ElevatedButton(onPressed: () { if (tCtrl.text.isEmpty || pCtrl.text.isEmpty) return; setState(() { list[index].title = tCtrl.text; list[index].price = pCtrl.text; }); Navigator.pop(context); }, child: const Text('تایید'))]));
+    showDialog(context: context, builder: (context) => AlertDialog(title: const Text('ویرایش محصول'), content: Column(mainAxisSize: MyAxisSize.min, children: [TextField(controller: tCtrl, decoration: const InputDecoration(labelText: 'عنوان')), TextField(controller: pCtrl, decoration: const InputDecoration(labelText: 'قیمت'))]), actions: [TextButton(onPressed: () => Navigator.pop(context), child: const Text('لغو')), ElevatedButton(onPressed: () { if (tCtrl.text.trim().isEmpty || pCtrl.text.trim().isEmpty) return; setState(() { list[index].title = tCtrl.text.trim(); list[index].price = pCtrl.text.trim(); }); Navigator.pop(context); }, child: const Text('تایید'))]));
   }
 }
