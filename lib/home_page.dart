@@ -142,13 +142,14 @@ class HomePage extends StatefulWidget {
 
 class _HomePageState extends State<HomePage> {
   int _selectedIndex = 0;
-  final String _adminPhone = "09927891608"; // Your admin phone number
+  final String _adminPhone = "09927891608"; 
   final SupabaseClient _supabase = Supabase.instance.client;
 
   String _instaID = "pico_market_app";
   String _telegramID = "@pico_support";
   String _supportEmail = "support@pico.ir";
   String _paymentLink = "https://zarrinpal.com";
+  String _lotteryEntryFee = "۱۰,۰۰۰ تومان";
 
   List<Product> _instaProducts = [];
   List<Product> _telegramProducts = [];
@@ -188,6 +189,7 @@ class _HomePageState extends State<HomePage> {
         if (item['key'] == 'telegram_id') _telegramID = item['value'];
         if (item['key'] == 'support_email') _supportEmail = item['value'];
         if (item['key'] == 'payment_link') _paymentLink = item['value'];
+        if (item['key'] == 'lottery_entry_fee') _lotteryEntryFee = item['value'];
       }
 
       final productsRes = await _supabase.from('products').select();
@@ -418,7 +420,7 @@ class _HomePageState extends State<HomePage> {
           ElevatedButton(
             onPressed: () {
               _lNameController.text = widget.userName;
-              _lPhoneController.text = ""; 
+              _lPhoneController.text = widget.userPhone; 
               setState(() => _lotteryStep = 1);
             },
             style: ElevatedButton.styleFrom(backgroundColor: Colors.orange, foregroundColor: Colors.black, padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 15), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15))),
@@ -470,7 +472,7 @@ class _HomePageState extends State<HomePage> {
               padding: const EdgeInsets.all(15.0),
               child: Column(
                 children: [
-                  const Text('مبلغ ورودی: ۱۰,۰۰۰ تومان', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                  Text('مبلغ ورودی: $_lotteryEntryFee', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
                   Text(_lotteryBannerPrize, style: const TextStyle(fontSize: 14)),
                 ],
               ),
@@ -554,7 +556,7 @@ class _HomePageState extends State<HomePage> {
           Center(child: Stack(children: [CircleAvatar(radius: 60, backgroundColor: Colors.orange.withOpacity(0.2), child: const Icon(Icons.person, size: 80, color: Colors.orange)), Positioned(bottom: 0, right: 0, child: CircleAvatar(backgroundColor: Colors.orange, radius: 18, child: IconButton(icon: const Icon(Icons.camera_alt, size: 18, color: Colors.black), onPressed: () {})))])),
           const SizedBox(height: 30),
           _buildInfoTile(Icons.person, 'نام و نام خانوادگی', widget.userName),
-          _buildInfoTile(Icons.email, 'ایمیل', widget.userEmail),
+          _buildInfoTile(Icons.phone, 'شماره تماس', widget.userPhone),
           const SizedBox(height: 15),
           GestureDetector(
             onDoubleTap: () {
@@ -574,7 +576,8 @@ class _HomePageState extends State<HomePage> {
                   tele: _telegramID,
                   mail: _supportEmail,
                   paymentLink: _paymentLink,
-                  onUpdate: (insta, tele, other, winners, przs, parts, orders, title, prize, date, inst, tel, eml, pay) {
+                  lotteryFee: _lotteryEntryFee,
+                  onUpdate: (insta, tele, other, winners, przs, parts, orders, title, prize, date, inst, tel, eml, pay, fee) {
                     _fetchSupabaseData();
                   },
                 )));
@@ -640,7 +643,7 @@ class _HomePageState extends State<HomePage> {
 
   void _handleStorePurchase(Product product) {
     TextEditingController nameCtrl = TextEditingController(text: widget.userName);
-    TextEditingController phoneCtrl = TextEditingController();
+    TextEditingController phoneCtrl = TextEditingController(text: widget.userPhone);
     TextEditingController pageIDCtrl = TextEditingController();
     TextEditingController quantityCtrl = TextEditingController();
     TextEditingController requestCtrl = TextEditingController();
@@ -756,10 +759,10 @@ class AdminPanel extends StatefulWidget {
   final List<PrizeRecord> prizes;
   final List<LotteryParticipant> lotteryParticipants;
   final List<OrderRecord> allOrders;
-  final String bannerTitle, bannerPrize, bannerDate, insta, tele, mail, paymentLink;
-  final Function(List<Product>, List<Product>, List<Product>, List<Winner>, List<PrizeRecord>, List<LotteryParticipant>, List<OrderRecord>, String, String, String, String, String, String, String) onUpdate;
+  final String bannerTitle, bannerPrize, bannerDate, insta, tele, mail, paymentLink, lotteryFee;
+  final Function(List<Product>, List<Product>, List<Product>, List<Winner>, List<PrizeRecord>, List<LotteryParticipant>, List<OrderRecord>, String, String, String, String, String, String, String, String) onUpdate;
 
-  const AdminPanel({super.key, required this.instaProducts, required this.telegramProducts, required this.otherProducts, required this.lotteryWinners, required this.prizes, required this.lotteryParticipants, required this.allOrders, required this.bannerTitle, required this.bannerPrize, required this.bannerDate, required this.insta, required this.tele, required this.mail, required this.paymentLink, required this.onUpdate});
+  const AdminPanel({super.key, required this.instaProducts, required this.telegramProducts, required this.otherProducts, required this.lotteryWinners, required this.prizes, required this.lotteryParticipants, required this.allOrders, required this.bannerTitle, required this.bannerPrize, required this.bannerDate, required this.insta, required this.tele, required this.mail, required this.paymentLink, required this.lotteryFee, required this.onUpdate});
 
   @override
   State<AdminPanel> createState() => _AdminPanelState();
@@ -769,8 +772,9 @@ class _AdminPanelState extends State<AdminPanel> {
   late List<Product> _tempInsta, _tempTele, _tempOther;
   late List<Winner> _tempWinners;
   late List<PrizeRecord> _tempPrizes;
+  late List<LotteryParticipant> _tempParticipants;
   late List<OrderRecord> _tempOrders;
-  late TextEditingController _titleController, _prizeController, _dateController, _instController, _teleController, _mailController, _payController;
+  late TextEditingController _titleController, _prizeController, _dateController, _instController, _teleController, _mailController, _payController, _feeController;
   final SupabaseClient _supabase = Supabase.instance.client;
 
   @override
@@ -781,6 +785,7 @@ class _AdminPanelState extends State<AdminPanel> {
     _tempOther = List.from(widget.otherProducts);
     _tempWinners = List.from(widget.lotteryWinners);
     _tempPrizes = List.from(widget.prizes);
+    _tempParticipants = List.from(widget.lotteryParticipants);
     _tempOrders = List.from(widget.allOrders);
     _titleController = TextEditingController(text: widget.bannerTitle);
     _prizeController = TextEditingController(text: widget.bannerPrize);
@@ -789,15 +794,11 @@ class _AdminPanelState extends State<AdminPanel> {
     _teleController = TextEditingController(text: widget.tele);
     _mailController = TextEditingController(text: widget.mail);
     _payController = TextEditingController(text: widget.paymentLink);
+    _feeController = TextEditingController(text: widget.lotteryFee);
   }
 
   Future<void> _saveToSupabase() async {
     try {
-      if (_titleController.text.trim().isEmpty || _prizeController.text.trim().isEmpty || _dateController.text.trim().isEmpty || _instController.text.trim().isEmpty || _teleController.text.trim().isEmpty || _mailController.text.trim().isEmpty || _payController.text.trim().isEmpty) {
-         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('لطفاً تمامی فیلدها را پر کنید')));
-         return;
-      }
-
       await _supabase.from('app_config').upsert([
         {'key': 'lottery_banner_title', 'value': _titleController.text.trim()},
         {'key': 'lottery_banner_prize', 'value': _prizeController.text.trim()},
@@ -806,30 +807,55 @@ class _AdminPanelState extends State<AdminPanel> {
         {'key': 'telegram_id', 'value': _teleController.text.trim()},
         {'key': 'support_email', 'value': _mailController.text.trim()},
         {'key': 'payment_link', 'value': _payController.text.trim()},
+        {'key': 'lottery_entry_fee', 'value': _feeController.text.trim()},
       ], onConflict: 'key');
 
+      // Sync Products
       await _supabase.from('products').delete().neq('id', -1);
-      await _supabase.from('products').insert(_tempInsta.map((e) => e.toJson()).toList());
-      await _supabase.from('products').insert(_tempTele.map((e) => e.toJson()).toList());
-      await _supabase.from('products').insert(_tempOther.map((e) => e.toJson()).toList());
+      if (_tempInsta.isNotEmpty) await _supabase.from('products').insert(_tempInsta.map((e) => e.toJson()).toList());
+      if (_tempTele.isNotEmpty) await _supabase.from('products').insert(_tempTele.map((e) => e.toJson()).toList());
+      if (_tempOther.isNotEmpty) await _supabase.from('products').insert(_tempOther.map((e) => e.toJson()).toList());
 
+      // Sync Winners
       await _supabase.from('winners').delete().neq('id', -1);
-      await _supabase.from('winners').insert(_tempWinners.map((e) => e.toJson()).toList());
+      if (_tempWinners.isNotEmpty) await _supabase.from('winners').insert(_tempWinners.map((e) => e.toJson()).toList());
 
+      // Sync Prizes
       await _supabase.from('prizes').delete().neq('id', -1);
-      await _supabase.from('prizes').insert(_tempPrizes.map((e) => e.toJson()).toList());
+      if (_tempPrizes.isNotEmpty) await _supabase.from('prizes').insert(_tempPrizes.map((e) => e.toJson()).toList());
 
+      // Orders - Update Status
       for (var order in _tempOrders) {
         if (order.id != null) await _supabase.from('orders').update({'status': order.status}).eq('id', order.id);
       }
 
       if (!mounted) return;
-      widget.onUpdate(_tempInsta, _tempTele, _tempOther, _tempWinners, _tempPrizes, widget.lotteryParticipants, _tempOrders, _titleController.text.trim(), _prizeController.text.trim(), _dateController.text.trim(), _instController.text.trim(), _teleController.text.trim(), _mailController.text.trim(), _payController.text.trim());
+      widget.onUpdate(_tempInsta, _tempTele, _tempOther, _tempWinners, _tempPrizes, _tempParticipants, _tempOrders, _titleController.text.trim(), _prizeController.text.trim(), _dateController.text.trim(), _instController.text.trim(), _teleController.text.trim(), _mailController.text.trim(), _payController.text.trim(), _feeController.text.trim());
       Navigator.pop(context);
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('تمامی اطلاعات با موفقیت همگام‌سازی شد.')));
     } catch (e) {
       debugPrint('Save Error: $e');
     }
+  }
+
+  Future<void> _deleteAllParticipants() async {
+    bool? confirm = await _showConfirmDialog('حذف تمامی شرکت‌کنندگان', 'آیا از حذف تمامی اطلاعات ثبت‌نامی قرعه‌کشی اطمینان دارید؟');
+    if (confirm == true) {
+      await _supabase.from('participants').delete().neq('id', -1);
+      setState(() => _tempParticipants.clear());
+    }
+  }
+
+  Future<void> _deleteAllOrders() async {
+    bool? confirm = await _showConfirmDialog('حذف تمامی سفارشات', 'آیا از حذف تمامی لیست سفارشات اطمینان دارید؟');
+    if (confirm == true) {
+      await _supabase.from('orders').delete().neq('id', -1);
+      setState(() => _tempOrders.clear());
+    }
+  }
+
+  Future<bool?> _showConfirmDialog(String title, String content) {
+    return showDialog<bool>(context: context, builder: (context) => AlertDialog(title: Text(title), content: Text(content), actions: [TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('انصراف')), TextButton(onPressed: () => Navigator.pop(context, true), child: const Text('تایید حذف', style: TextStyle(color: Colors.red)))]));
   }
 
   @override
@@ -843,11 +869,17 @@ class _AdminPanelState extends State<AdminPanel> {
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(15),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          const Text('🎟 ثبت‌نام‌کنندگان قرعه‌کشی', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.purple)),
-          if (widget.lotteryParticipants.isEmpty) const Text('هیچ ثبت‌نامی انجام نشده است.'),
-          ...widget.lotteryParticipants.reversed.map((p) => Card(color: Colors.purple.withOpacity(0.05), child: ListTile(title: Text(p.name, style: const TextStyle(fontWeight: FontWeight.bold)), subtitle: Text('تماس: ${p.phone}\nتلگرام: ${p.telegram}\nتاریخ: ${p.date}')))),
+          Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+            const Text('🎟 ثبت‌نام‌کنندگان قرعه‌کشی', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.purple)),
+            if (_tempParticipants.isNotEmpty) TextButton.icon(onPressed: _deleteAllParticipants, icon: const Icon(Icons.delete_sweep, color: Colors.red), label: const Text('حذف همه', style: TextStyle(color: Colors.red)))
+          ]),
+          if (_tempParticipants.isEmpty) const Text('هیچ ثبت‌نامی انجام نشده است.'),
+          ..._tempParticipants.reversed.map((p) => Card(color: Colors.purple.withOpacity(0.05), child: ListTile(title: Text(p.name, style: const TextStyle(fontWeight: FontWeight.bold)), subtitle: Text('تماس: ${p.phone}\nتلگرام: ${p.telegram}\nتاریخ: ${p.date}')))),
           const Divider(height: 40),
-          const Text('📦 لیست سفارشات', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.blue)),
+          Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+            const Text('📦 لیست سفارشات', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.blue)),
+            if (_tempOrders.isNotEmpty) TextButton.icon(onPressed: _deleteAllOrders, icon: const Icon(Icons.delete_sweep, color: Colors.red), label: const Text('حذف همه', style: TextStyle(color: Colors.red)))
+          ]),
           ..._tempOrders.reversed.map((order) {
             int idx = _tempOrders.indexOf(order);
             return Card(color: Colors.blue.withOpacity(0.05), child: Column(children: [
@@ -865,16 +897,18 @@ class _AdminPanelState extends State<AdminPanel> {
           TextField(controller: _teleController, decoration: const InputDecoration(labelText: 'تلگرام')),
           TextField(controller: _mailController, decoration: const InputDecoration(labelText: 'ایمیل')),
           const Divider(height: 40),
-          const Text('🔗 لینک درگاه پرداخت مستقیم', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.blue)),
+          const Text('🔗 تنظیمات درگاه و ورودی', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.blue)),
           const SizedBox(height: 10),
-          TextField(controller: _payController, decoration: const InputDecoration(labelText: 'لینک پرداخت (با http شروع شود)', border: OutlineInputBorder(), prefixIcon: Icon(Icons.link, color: Colors.blue))),
+          TextField(controller: _payController, decoration: const InputDecoration(labelText: 'لینک درگاه پرداخت (با http)', border: OutlineInputBorder(), prefixIcon: Icon(Icons.link))),
+          const SizedBox(height: 15),
+          TextField(controller: _feeController, decoration: const InputDecoration(labelText: 'مبلغ ورودی قرعه‌کشی (مثلا ۱۰,۰۰۰ تومان)', border: OutlineInputBorder(), prefixIcon: Icon(Icons.monetization_on))),
           const Divider(height: 40),
           const Text('🎁 مدیریت جوایز دوره', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-          ..._tempPrizes.asMap().entries.map((entry) => Card(child: ListTile(title: Text(entry.value.title), subtitle: Text(entry.value.amount), trailing: IconButton(icon: const Icon(Icons.edit, color: Colors.orange), onPressed: () => _editPrize(entry.key))))),
+          ..._tempPrizes.asMap().entries.map((entry) => Card(child: ListTile(title: Text(entry.value.title), subtitle: Text(entry.value.amount), trailing: Row(mainAxisSize: MainAxisSize.min, children: [IconButton(icon: const Icon(Icons.edit, color: Colors.orange), onPressed: () => _editPrize(entry.key)), IconButton(icon: const Icon(Icons.delete, color: Colors.red), onPressed: () => setState(() => _tempPrizes.removeAt(entry.key)))])))),
           ElevatedButton.icon(onPressed: _addPrize, icon: const Icon(Icons.add), label: const Text('افزودن جایزه'), style: ElevatedButton.styleFrom(backgroundColor: Colors.orange, foregroundColor: Colors.black)),
           const Divider(height: 40),
           const Text('🏆 مدیریت برندگان', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-          ..._tempWinners.asMap().entries.map((entry) => Card(child: ListTile(title: Text(entry.value.name), subtitle: Text('${entry.value.prize} - ${entry.value.date}'), trailing: IconButton(icon: const Icon(Icons.edit, color: Colors.green), onPressed: () => _editWinner(entry.key))))),
+          ..._tempWinners.asMap().entries.map((entry) => Card(child: ListTile(title: Text(entry.value.name), subtitle: Text('${entry.value.prize} - ${entry.value.date}'), trailing: Row(mainAxisSize: MainAxisSize.min, children: [IconButton(icon: const Icon(Icons.edit, color: Colors.green), onPressed: () => _editWinner(entry.key)), IconButton(icon: const Icon(Icons.delete, color: Colors.red), onPressed: () => setState(() => _tempWinners.removeAt(entry.key)))])))),
           ElevatedButton.icon(onPressed: _addWinner, icon: const Icon(Icons.add), label: const Text('افزودن برنده'), style: ElevatedButton.styleFrom(backgroundColor: Colors.green, foregroundColor: Colors.white)),
           const Divider(height: 40),
           const Text('🎫 تنظیمات بنر', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
@@ -889,7 +923,7 @@ class _AdminPanelState extends State<AdminPanel> {
   Widget _buildCategoryEditSection(String title, List<Product> list, String categoryKey) {
     return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
       Text(title, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-      ...list.asMap().entries.map((entry) => Card(child: ListTile(title: Text(entry.value.title), subtitle: Text(entry.value.price), trailing: IconButton(icon: const Icon(Icons.edit), onPressed: () => _editProduct(entry.key, list))))),
+      ...list.asMap().entries.map((entry) => Card(child: ListTile(title: Text(entry.value.title), subtitle: Text(entry.value.price), trailing: Row(mainAxisSize: MainAxisSize.min, children: [IconButton(icon: const Icon(Icons.edit), onPressed: () => _editProduct(entry.key, list)), IconButton(icon: const Icon(Icons.delete, color: Colors.red), onPressed: () => setState(() => list.removeAt(entry.key)))])))),
       ElevatedButton.icon(onPressed: () => _addProduct(list, categoryKey), icon: const Icon(Icons.add_shopping_cart), label: const Text('افزودن محصول'), style: ElevatedButton.styleFrom(backgroundColor: Colors.orange, foregroundColor: Colors.black)),
     ]);
   }
