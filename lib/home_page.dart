@@ -95,9 +95,8 @@ class _HomePageState extends State<HomePage> {
   String _lotteryBannerTitle = 'قرعه‌کشی بزرگ هفتگی', _lotteryBannerPrize = 'جایزه ۵ میلیونی', _lotteryBannerDate = 'جمعه ساعت ۲۱';
   int _lotteryMaxCapacity = 500, _lotteryManualOffset = 0;
   bool _isStoreEnabled = true, _isLotteryEnabled = true, _isOrdersEnabled = true, _isNewsEnabled = true, _isSupportEnabled = true;
-  String _isLoading = true; String _searchProductQuery = "";
+  bool _isLoading = true; String _searchProductQuery = "";
   
-  // Temporary storage for order details during IAP process
   String? _tempPageId, _tempDetails, _tempName, _tempPhone, _tempTitle;
   int? _tempAmount;
 
@@ -208,7 +207,6 @@ class _HomePageState extends State<HomePage> {
       titles.add('سفارشات');
     }
     
-    // Always add profile
     activeWidgets.add(_buildProfileContent());
     navItems.add(const BottomNavigationBarItem(icon: Icon(Icons.person), label: 'پروفایل'));
     titles.add('پروفایل');
@@ -237,10 +235,9 @@ class _HomePageState extends State<HomePage> {
   void _showNewsDetail(AppNews n) => showDialog(context: context, builder: (c) => AlertDialog(title: Text(n.title), content: SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min, children: [Text(n.date, style: const TextStyle(fontSize: 10, color: Colors.grey)), const SizedBox(height: 10), Text(n.content)])), actions: [TextButton(onPressed: () => Navigator.pop(c), child: const Text('بستن'))]));
 
   Widget _buildCategorySection(String t, List<Product> p, Color c) => Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Padding(padding: const EdgeInsets.all(16), child: Row(children: [Container(width: 5, height: 25, decoration: BoxDecoration(color: c, borderRadius: BorderRadius.circular(10))), const SizedBox(width: 10), Text(t, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold))])), SizedBox(height: 250, child: ListView.builder(scrollDirection: Axis.horizontal, itemCount: p.length, itemBuilder: (cxt, i) => _buildProductCard(p[i], c)))]);
-  Widget _buildProductCard(Product p, Color c) => Container(width: 165, margin: const EdgeInsets.all(8), decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(20), border: Border.all(color: c.withOpacity(0.1), width: 2), boxShadow: [BoxShadow(color: c.withOpacity(0.05), blurRadius: 10, offset: const Offset(0, 5))]), child: Column(children: [const SizedBox(height: 15), p.imageUrl.isNotEmpty ? Image.network(p.imageUrl, height: 75, fit: BoxFit.contain, errorBuilder: (c,e,s) => Icon(Icons.image, size: 60, color: c)) : Icon(Icons.image, size: 60, color: c), const SizedBox(height: 10), Text(p.title, textAlign: TextAlign.center, style: const TextStyle(fontWeight: FontWeight.bold), maxLines: 1), const Spacer(), Text('${formatPrice(p.priceInt)} تومان', style: TextStyle(color: c, fontWeight: FontWeight.bold, fontSize: 15)), Container(width: double.infinity, margin: const EdgeInsets.all(10), child: ElevatedButton(onPressed: () => _handleDirectPayment(p.priceInt, p.title, "خرید محصول"), style: ElevatedButton.styleFrom(backgroundColor: c, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))), child: const Text('پرداخت و خرید')))]));
+  Widget _buildProductCard(Product p, Color c) => Container(width: 165, margin: const EdgeInsets.all(8), decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(20), border: Border.all(color: c.withOpacity(0.1), width: 2), boxShadow: [BoxShadow(color: c.withOpacity(0.05), blurRadius: 10, offset: const Offset(0, 5))]), child: Column(children: [const SizedBox(height: 15), p.imageUrl.isNotEmpty ? Image.network(p.imageUrl, height: 75, fit: BoxFit.contain, errorBuilder: (_,e,s) => Icon(Icons.image, size: 60, color: c)) : Icon(Icons.image, size: 60, color: c), const SizedBox(height: 10), Text(p.title, textAlign: TextAlign.center, style: const TextStyle(fontWeight: FontWeight.bold), maxLines: 1), const Spacer(), Text('${formatPrice(p.priceInt)} تومان', style: TextStyle(color: c, fontWeight: FontWeight.bold, fontSize: 15)), Container(width: double.infinity, margin: const EdgeInsets.all(10), child: ElevatedButton(onPressed: () => _handleDirectPayment(p.priceInt, p.title, "خرید محصول"), style: ElevatedButton.styleFrom(backgroundColor: c, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))), child: const Text('پرداخت و خرید')))]));
 
   Future<void> _handleDirectPayment(int amount, String title, String type) async {
-    // Check if IAP is available
     final bool available = await _iap.isAvailable();
     if (!available) {
       _showError('سرویس پرداخت بازار در دسترس نیست. لطفا از نصب بودن کافه بازار اطمینان حاصل کنید.');
@@ -288,7 +285,6 @@ class _HomePageState extends State<HomePage> {
       );
       if (formFilled != true) return;
 
-      // Store temp data
       _tempName = nameController.text.trim();
       _tempPhone = phoneController.text.trim();
       _tempPageId = pageIdController.text.trim();
@@ -296,8 +292,7 @@ class _HomePageState extends State<HomePage> {
       _tempTitle = title;
       _tempAmount = amount;
 
-      // Bazaar SKU should be defined in Bazaar Panel.
-      String sku = type == "خرید محصول" ? (widget.instaProducts + widget.telegramProducts + widget.otherProducts).firstWhere((pr) => pr.title == title).sku : "lottery_entry";
+      String sku = type == "خرید محصول" ? (instaProducts_flat().firstWhere((pr) => pr.title == title)).sku : "lottery_entry";
       
       if (sku.isEmpty) {
         _showError('شناسه محصول (SKU) در پنل مدیریت تنظیم نشده است.');
@@ -306,14 +301,25 @@ class _HomePageState extends State<HomePage> {
       
       final ProductDetailsResponse response = await _iap.queryProductDetails({sku});
       if (response.notFoundIDs.isNotEmpty) {
-        _showError('شناسه قرعه‌کشی در بازار یافت نشد (SKU: $sku)');
+        _showError('شناسه کالا در بازار یافت نشد (SKU: $sku)');
         return;
       }
 
       final PurchaseParam purchaseParam = PurchaseParam(productDetails: response.productDetails.first);
       _iap.buyConsumable(purchaseParam: purchaseParam);
+    } else {
+      String sku = "lottery_entry";
+      final ProductDetailsResponse response = await _iap.queryProductDetails({sku});
+      if (response.notFoundIDs.isNotEmpty) {
+        _showError('شناسه قرعه‌کشی در بازار یافت نشد (SKU: $sku)');
+        return;
+      }
+      final PurchaseParam purchaseParam = PurchaseParam(productDetails: response.productDetails.first);
+      _iap.buyConsumable(purchaseParam: purchaseParam);
     }
   }
+
+  List<Product> instaProducts_flat() => [..._instaProducts, ..._telegramProducts, ..._otherProducts];
 
   IconData _getPrizeIcon(int code) {
     if (code == Icons.looks_one.codePoint) return Icons.looks_one;
@@ -450,13 +456,11 @@ class _HomePageState extends State<HomePage> {
   }
 
   Future<bool> _verifyPurchase(PurchaseDetails purchase) async {
-    // In a production app, verify the purchase on your own server.
-    // For now, we assume it's valid if Bazaar returns success.
     return true;
   }
 
   void _deliverProduct(PurchaseDetails purchase) async {
-    Navigator.pop(context); // Close loading
+    Navigator.pop(context); 
     String track = "BAZ-${Random().nextInt(90000) + 10000}";
     
     if (_tempTitle != null) {
@@ -475,7 +479,6 @@ class _HomePageState extends State<HomePage> {
       _fetchSupabaseData();
       _showSuccess('پرداخت بازار تایید شد! سفارش شما با موفقیت ثبت گردید.\nکد پیگیری: $track');
     } else {
-      // Lottery participant
       String pikoCode = "PIKO-${Random().nextInt(900000) + 100000}";
       await _supabase.from('participants').insert({
         'name': widget.userName, 
@@ -492,6 +495,7 @@ class _HomePageState extends State<HomePage> {
 
   void _showError(String m) => showDialog(context: context, builder: (c) => AlertDialog(title: const Icon(Icons.error, color: Colors.red, size: 50), content: Text(m, textAlign: TextAlign.center), actions: [TextButton(onPressed: () => Navigator.pop(c), child: const Text('باشه'))]));
   void _showSuccess(String m) => showDialog(context: context, builder: (c) => AlertDialog(title: const Icon(Icons.check_circle, color: Colors.green, size: 50), content: Text(m, textAlign: TextAlign.center), actions: [Center(child: TextButton(onPressed: () => Navigator.pop(c), child: const Text('فهمیدم')))]));
+  void _showLoading(String m) => showDialog(context: context, builder: (c) => AlertDialog(content: Column(mainAxisSize: MainAxisSize.min, children: [const CircularProgressIndicator(color: Colors.orange), const SizedBox(height: 15), Text(m)])));
 
   void _handleAdminAccess() {
     _adminClickCount++;
@@ -591,7 +595,6 @@ class _AdminPanelState extends State<AdminPanel> {
   Widget _accessTile(String t, bool val, Function(bool) onC) => Card(child: SwitchListTile(title: Text(t), value: val, onChanged: onC, activeColor: Colors.orange));
 
   Widget _buildSuccessfulPaymentsTab() {
-    // Merge successful purchases and lottery participants
     List<dynamic> combined = [];
     combined.addAll(widget.allOrders.where((o) => o.trackingCode.startsWith('BAZ-') || o.status == "انجام شده"));
     combined.addAll(widget.allParticipants);
@@ -679,7 +682,7 @@ class _AdminPanelState extends State<AdminPanel> {
   Widget _buildCategoryMgmt(String t, List<Product> l, String k) => Card(child: Column(children: [
     ListTile(title: Text(t, style: const TextStyle(fontWeight: FontWeight.bold))), 
     ...l.map((e) => ListTile(
-      leading: e.imageUrl.isNotEmpty ? Image.network(e.imageUrl, width: 40, height: 40, fit: BoxFit.cover, errorBuilder: (c,o,s) => const Icon(Icons.image)) : const Icon(Icons.image), 
+      leading: e.imageUrl.isNotEmpty ? Image.network(e.imageUrl, width: 40, height: 40, fit: BoxFit.cover, errorBuilder: (_,o,s) => const Icon(Icons.image)) : const Icon(Icons.image), 
       title: Text(e.title), 
       subtitle: Text('${formatPrice(e.priceInt)} تومان | SKU: ${e.sku}'), 
       trailing: Row(
@@ -705,7 +708,7 @@ class _AdminPanelState extends State<AdminPanel> {
       TextField(controller: pr, decoration: const InputDecoration(labelText: 'قیمت (عدد)')),
       TextField(controller: s, decoration: const InputDecoration(labelText: 'شناسه بازار (SKU)')),
       const SizedBox(height: 15),
-      if (imgUrl != null && imgUrl!.isNotEmpty) Image.network(imgUrl!, height: 80, errorBuilder: (c,e,s) => const Icon(Icons.broken_image)) else const Icon(Icons.image, size: 50, color: Colors.grey),
+      if (imgUrl != null && imgUrl!.isNotEmpty) Image.network(imgUrl!, height: 80, errorBuilder: (_,e,s) => const Icon(Icons.broken_image)) else const Icon(Icons.image, size: 50, color: Colors.grey),
       TextButton.icon(onPressed: () async {
         final pick = await ImagePicker().pickImage(source: ImageSource.gallery);
         if (pick != null) {
