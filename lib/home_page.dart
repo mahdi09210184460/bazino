@@ -354,8 +354,27 @@ class _AdminPanelState extends State<AdminPanel> {
   }
   void _replyTicket(SupportTicket t) { TextEditingController r = TextEditingController(text: t.adminReply); showDialog(context: context, builder: (c) => AlertDialog(title: const Text('پاسخ'), content: TextField(controller: r, maxLines: 3), actions: [ElevatedButton(onPressed: () { setState(() { t.adminReply = r.text; t.status = "پاسخ داده شده"; }); Navigator.pop(c); }, child: const Text('ثبت'))])); }
   Widget _buildProductsTab() => SingleChildScrollView(child: Column(children: [_buildCategoryMgmt(_cInsta.text, _tempInsta, 'insta'), _buildCategoryMgmt(_cTele.text, _tempTele, 'tele'), _buildCategoryMgmt(_cOther.text, _tempOther, 'other'), const SizedBox(height: 20)]));
-  Widget _buildCategoryMgmt(String t, List<Product> l, String k) => Card(child: Column(children: [ListTile(title: Text(t)), ...l.map((e) => ListTile(title: Text(e.title), trailing: IconButton(icon: const Icon(Icons.delete), onPressed: () => setState(() => l.remove(e))))), ElevatedButton(onPressed: () => _addProduct(l, k), child: const Text('افزودن'))]));
-  void _addProduct(List<Product> l, String k) { TextEditingController t = TextEditingController(), p = TextEditingController(); showDialog(context: context, builder: (c) => AlertDialog(content: Column(mainAxisSize: MainAxisSize.min, children: [TextField(controller: t, decoration: const InputDecoration(labelText: 'نام')), TextField(controller: p, decoration: const InputDecoration(labelText: 'قیمت'))]), actions: [ElevatedButton(onPressed: () { setState(() => l.add(Product(title: t.text, price: '${t.text} تومان', quality: 'عالی', imageUrl: '', category: k, priceInt: int.tryParse(p.text) ?? 0))); Navigator.pop(c); }, child: const Text('افزودن'))])); }
+  Widget _buildCategoryMgmt(String t, List<Product> l, String k) => Card(child: Column(children: [ListTile(title: Text(t, style: const TextStyle(fontWeight: FontWeight.bold))), ...l.map((e) => ListTile(leading: e.imageUrl.isNotEmpty ? Image.network(e.imageUrl, width: 40, height: 40, fit: BoxFit.cover, errorBuilder: (c,o,s) => const Icon(Icons.image)) : const Icon(Icons.image), title: Text(e.title), subtitle: Text(e.price), trailing: IconButton(icon: const Icon(Icons.delete, color: Colors.red), onPressed: () => setState(() => l.remove(e))))), ElevatedButton.icon(onPressed: () => _addProduct(l, k), icon: const Icon(Icons.add), label: const Text('افزودن محصول'))]));
+  void _addProduct(List<Product> l, String k) {
+    TextEditingController t = TextEditingController(), p = TextEditingController(); String? imgUrl;
+    showDialog(context: context, builder: (c) => StatefulBuilder(builder: (c, setS) => AlertDialog(title: const Text('محصول جدید'), content: Column(mainAxisSize: MainAxisSize.min, children: [
+      TextField(controller: t, decoration: const InputDecoration(labelText: 'نام محصول')),
+      TextField(controller: p, decoration: const InputDecoration(labelText: 'قیمت (عدد)')),
+      const SizedBox(height: 15),
+      if (imgUrl != null) Image.network(imgUrl!, height: 80) else const Icon(Icons.image, size: 50, color: Colors.grey),
+      TextButton.icon(onPressed: () async {
+        final pick = await ImagePicker().pickImage(source: ImageSource.gallery);
+        if (pick != null) {
+          _showLoading('در حال آپلود...');
+          final bytes = await pick.readAsBytes();
+          final path = 'products/${DateTime.now().millisecondsSinceEpoch}.png';
+          await _supabase.storage.from('products').uploadBinary(path, bytes);
+          setS(() => imgUrl = _supabase.storage.from('products').getPublicUrl(path));
+          Navigator.pop(context);
+        }
+      }, icon: const Icon(Icons.upload), label: const Text('انتخاب و آپلود عکس'))
+    ]), actions: [TextButton(onPressed: () => Navigator.pop(c), child: const Text('انصراف')), ElevatedButton(onPressed: () { if (t.text.isEmpty) return; setState(() => l.add(Product(title: t.text, price: '${p.text} تومان', quality: 'عالی', imageUrl: imgUrl ?? '', category: k, priceInt: int.tryParse(p.text) ?? 0))); Navigator.pop(c); }, child: const Text('افزودن'))])));
+  }
   Widget _buildLotteryMgmtTab() => Column(children: [ElevatedButton(onPressed: _addWinner, child: const Text('افزودن برنده')), Expanded(child: ListView.builder(itemCount: _tempWinners.length, itemBuilder: (c, i) => Card(child: ListTile(title: Text(_tempWinners[i].name), subtitle: Text(_tempWinners[i].city), trailing: IconButton(icon: const Icon(Icons.delete), onPressed: () => setState(() => _tempWinners.removeAt(i)))))))]);
   void _addWinner() { TextEditingController n = TextEditingController(), ci = TextEditingController(), p = TextEditingController(), d = TextEditingController(); showDialog(context: context, builder: (c) => AlertDialog(content: Column(mainAxisSize: MainAxisSize.min, children: [TextField(controller: n, decoration: const InputDecoration(labelText: 'نام')), TextField(controller: ci, decoration: const InputDecoration(labelText: 'شهر')), TextField(controller: p, decoration: const InputDecoration(labelText: 'جایزه')), TextField(controller: d, decoration: const InputDecoration(labelText: 'تاریخ'))]), actions: [ElevatedButton(onPressed: () { setState(() => _tempWinners.add(Winner(name: n.text, city: ci.text, prize: p.text, date: d.text))); Navigator.pop(c); }, child: const Text('ثبت'))])); }
   Widget _buildSettingsTab() => SingleChildScrollView(padding: const EdgeInsets.all(20), child: Column(children: [_buildStyledField(_ai, 'جمله AI', Icons.psychology), _buildStyledField(_rules, 'قوانین', Icons.gavel), _buildStyledField(_cInsta, 'طبقه ۱', Icons.label), _buildStyledField(_cTele, 'طبقه ۲', Icons.label), _buildStyledField(_cOther, 'طبقه ۳', Icons.label), _buildStyledField(_pay, 'لینک پرداخت', Icons.link), _buildStyledField(_fee, 'ورودی', Icons.payments), _buildStyledField(_title, 'عنوان بنر', Icons.title), _buildStyledField(_prize, 'جایزه بنر', Icons.card_giftcard), _buildStyledField(_date, 'تاریخ بنر', Icons.event)]));
