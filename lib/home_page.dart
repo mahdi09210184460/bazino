@@ -8,9 +8,9 @@ import 'dart:math';
 import 'dart:io';
 
 class AppUserRecord {
-  final String name, phone, username, lastLogin; bool isBanned; int walletBalance;
-  AppUserRecord({required this.name, required this.phone, required this.username, required this.lastLogin, this.isBanned = false, this.walletBalance = 0});
-  factory AppUserRecord.fromJson(Map<String, dynamic> json) => AppUserRecord(name: json['name'] ?? '', phone: json['phone'] ?? '', username: json['username'] ?? 'User', lastLogin: json['last_login'] ?? '', isBanned: json['is_banned'] ?? false, walletBalance: json['wallet_balance'] ?? 0);
+  final String name, phone, username, lastLogin; bool isBanned;
+  AppUserRecord({required this.name, required this.phone, required this.username, required this.lastLogin, this.isBanned = false});
+  factory AppUserRecord.fromJson(Map<String, dynamic> json) => AppUserRecord(name: json['name'] ?? '', phone: json['phone'] ?? '', username: json['username'] ?? 'User', lastLogin: json['last_login'] ?? '', isBanned: json['is_banned'] ?? false);
 }
 
 class Product {
@@ -27,12 +27,6 @@ class OrderRecord {
   dynamic id; final String userName, userPhone, username, productTitle, trackingCode; String status; final String date;
   OrderRecord({this.id, required this.userName, required this.userPhone, required this.username, required this.productTitle, required this.trackingCode, required this.status, required this.date});
   factory OrderRecord.fromJson(Map<String, dynamic> json) => OrderRecord(id: json['id'], userName: json['user_name'] ?? '', userPhone: json['user_phone'] ?? '', username: json['username'] ?? '', productTitle: json['product_title'] ?? '', trackingCode: json['tracking_code'] ?? '', status: json['status'] ?? "در انتظار", date: json['date'] ?? '');
-}
-
-class WalletTransaction {
-  final String title, amount, type, date;
-  WalletTransaction({required this.title, required this.amount, required this.type, required this.date});
-  factory WalletTransaction.fromJson(Map<String, dynamic> json) => WalletTransaction(title: json['title'] ?? 'شارژ/خرید', amount: (json['amount'] ?? 0).toString(), type: json['type'] ?? '', date: json['date'] ?? '');
 }
 
 class AppNews {
@@ -70,12 +64,10 @@ class _HomePageState extends State<HomePage> {
 
   String _username = "", _instaID = "pico", _telegramID = "@pico", _supportEmail = "pico@support", _paymentLink = "https://zarrinpal.com", _lotteryEntryFee = "۱۰,۰۰۰", _lotteryRules = "قوانین برنامه", _supTele = "@pico_support", _supWhatsApp = "09000000000";
   String _catInstaName = "اینستاگرام", _catTeleName = "تلگرام", _catOtherName = "سایر";
-  int _walletBalance = 0;
   List<Product> _instaProducts = [], _telegramProducts = [], _otherProducts = [];
-  List<Winner> _lotteryWinners = []; List<PrizeRecord> _prizes = []; List<OrderRecord> _allOrders = []; List<AppUserRecord> _appUsers = []; List<AppNews> _allNews = []; List<WalletTransaction> _myTransactions = [];
+  List<Winner> _lotteryWinners = []; List<PrizeRecord> _prizes = []; List<OrderRecord> _allOrders = []; List<AppUserRecord> _appUsers = []; List<AppNews> _allNews = [];
   String _lotteryBannerTitle = 'قرعه‌کشی بزرگ هفتگی', _lotteryBannerPrize = 'جایزه ۵ میلیونی', _lotteryBannerDate = 'جمعه ساعت ۲۱';
   bool _isLoading = true; String _searchProductQuery = "";
-  int _lotteryStep = 0;
 
   @override
   void initState() { super.initState(); _fetchSupabaseData(); _startSecurityMonitor(); }
@@ -119,7 +111,6 @@ class _HomePageState extends State<HomePage> {
       final userRes = await _supabase.from('app_users').select().eq('phone', widget.userPhone).maybeSingle();
       if (userRes != null) {
         if (userRes['is_banned'] == true) { _handleBan(); return; }
-        _walletBalance = userRes['wallet_balance'] ?? 0;
         _username = userRes['username'] ?? 'User';
       }
       _instaProducts = (await _supabase.from('products').select().eq('category', 'insta')).map((e) => Product.fromJson(e)).toList();
@@ -130,7 +121,6 @@ class _HomePageState extends State<HomePage> {
       _allOrders = (await _supabase.from('orders').select().order('created_at', ascending: false)).map((e) => OrderRecord.fromJson(e)).toList();
       _appUsers = (await _supabase.from('app_users').select().order('created_at', ascending: false)).map((e) => AppUserRecord.fromJson(e)).toList();
       _allNews = (await _supabase.from('news').select().order('created_at', ascending: false)).map((e) => AppNews.fromJson(e)).toList();
-      _myTransactions = (await _supabase.from('wallet_transactions').select().eq('user_phone', widget.userPhone).order('created_at', ascending: false)).map((e) => WalletTransaction.fromJson(e)).toList();
     } catch (e) { debugPrint('Supabase Error: $e'); }
     if (mounted) setState(() => _isLoading = false);
   }
@@ -161,30 +151,30 @@ class _HomePageState extends State<HomePage> {
   void _showNewsDetail(AppNews n) => showDialog(context: context, builder: (c) => AlertDialog(title: Text(n.title), content: SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min, children: [Text(n.date, style: const TextStyle(fontSize: 10, color: Colors.grey)), const SizedBox(height: 10), Text(n.content)])), actions: [TextButton(onPressed: () => Navigator.pop(c), child: const Text('بستن'))]));
 
   Widget _buildCategorySection(String t, List<Product> p) => Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Padding(padding: const EdgeInsets.all(16), child: Text(t, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold))), SizedBox(height: 250, child: ListView.builder(scrollDirection: Axis.horizontal, itemCount: p.length, itemBuilder: (c, i) => _buildProductCard(p[i])))]);
-  Widget _buildProductCard(Product p) => Container(width: 165, margin: const EdgeInsets.all(8), decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(20), boxShadow: [BoxShadow(color: Colors.black12, blurRadius: 10)]), child: Column(children: [const SizedBox(height: 15), p.imageUrl.isNotEmpty ? Image.network(p.imageUrl, height: 75, fit: BoxFit.contain, errorBuilder: (c,e,s) => const Icon(Icons.image, size: 60)) : const Icon(Icons.image, size: 60), const SizedBox(height: 10), Text(p.title, textAlign: TextAlign.center, style: const TextStyle(fontWeight: FontWeight.bold), maxLines: 1), const Spacer(), Text('${p.priceInt} تومان', style: const TextStyle(color: Colors.orange, fontWeight: FontWeight.bold)), Container(width: double.infinity, margin: const EdgeInsets.all(10), child: ElevatedButton(onPressed: () => _processPurchase(p.priceInt, p.title, "خرید محصول"), style: ElevatedButton.styleFrom(backgroundColor: Colors.orange, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))), child: const Text('خرید آنی')))]));
+  Widget _buildProductCard(Product p) => Container(width: 165, margin: const EdgeInsets.all(8), decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(20), boxShadow: [BoxShadow(color: Colors.black12, blurRadius: 10)]), child: Column(children: [const SizedBox(height: 15), p.imageUrl.isNotEmpty ? Image.network(p.imageUrl, height: 75, fit: BoxFit.contain, errorBuilder: (c,e,s) => const Icon(Icons.image, size: 60)) : const Icon(Icons.image, size: 60), const SizedBox(height: 10), Text(p.title, textAlign: TextAlign.center, style: const TextStyle(fontWeight: FontWeight.bold), maxLines: 1), const Spacer(), Text('${p.priceInt} تومان', style: const TextStyle(color: Colors.orange, fontWeight: FontWeight.bold)), Container(width: double.infinity, margin: const EdgeInsets.all(10), child: ElevatedButton(onPressed: () => _handleDirectPayment(p.priceInt, p.title, "خرید محصول"), style: ElevatedButton.styleFrom(backgroundColor: Colors.orange, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))), child: const Text('پرداخت و خرید')))]));
 
-  Future<void> _processPurchase(int amount, String title, String type) async {
-    if (_walletBalance >= amount) {
-      bool? confirm = await showDialog(context: context, builder: (c) => AlertDialog(title: const Text('تایید پرداخت'), content: Text('مبلغ $amount تومان از کیف پول کسر شود؟'), actions: [TextButton(onPressed: () => Navigator.pop(c, false), child: const Text('انصراف')), ElevatedButton(onPressed: () => Navigator.pop(c, true), child: const Text('بله'))]));
-      if (confirm != true) return;
-      _showLoading('در حال ثبت...');
+  Future<void> _handleDirectPayment(int amount, String title, String type) async {
+    bool? confirm = await showDialog(context: context, builder: (c) => AlertDialog(title: const Text('تایید نهایی'), content: Text('شما در حال خرید "$title" به مبلغ $amount تومان هستید. به درگاه بانکی منتقل شوید؟'), actions: [TextButton(onPressed: () => Navigator.pop(c, false), child: const Text('انصراف')), ElevatedButton(onPressed: () => Navigator.pop(c, true), child: const Text('بله، انتقال'))]));
+    if (confirm != true) return;
+
+    await launchUrl(Uri.parse(_paymentLink), mode: LaunchMode.externalApplication);
+    
+    if (!mounted) return;
+    showDialog(context: context, barrierDismissible: false, builder: (c) => AlertDialog(title: const Text('در انتظار پرداخت'), content: const Text('پس از تکمیل پرداخت در مرورگر، دکمه زیر را بزنید.'), actions: [ElevatedButton(onPressed: () async {
+      Navigator.pop(c); _showLoading('در حال تایید تراکنش...');
+      await Future.delayed(const Duration(seconds: 3)); // Simulate verification
       String track = "TRK-${Random().nextInt(90000) + 10000}";
-      _walletBalance -= amount;
-      await _supabase.from('app_users').update({'wallet_balance': _walletBalance}).eq('phone', widget.userPhone);
-      await _supabase.from('wallet_transactions').insert({'user_phone': widget.userPhone, 'amount': -amount, 'type': type, 'title': title, 'date': DateTime.now().toString().split('.')[0]});
       if (type == "خرید محصول") {
         await _supabase.from('orders').insert({'user_name': widget.userName, 'user_phone': widget.userPhone, 'username': _username, 'product_title': title, 'tracking_code': track, 'status': 'در حال انجام', 'date': DateTime.now().toString().split('.')[0]});
       } else {
         await _supabase.from('participants').insert({'name': widget.userName, 'phone': widget.userPhone, 'username': _username, 'lottery_code': "LOT-${Random().nextInt(90000)+10000}", 'date': DateTime.now().toString().split('.')[0]});
       }
-      Navigator.pop(context); _fetchSupabaseData(); _showSuccess('تراکنش با موفقیت انجام شد.\nکد پیگیری: $track');
-    } else {
-      _showRecharge(requiredAmount: amount);
-    }
+      Navigator.pop(context); _fetchSupabaseData(); _showSuccess('پرداخت تایید شد! سفارش شما ثبت گردید.\nکد پیگیری: $track');
+    }, child: const Text('تایید و ثبت نهایی'))]));
   }
 
   Widget _buildLotteryAndPrizes() => SingleChildScrollView(padding: const EdgeInsets.all(16), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-    Container(padding: const EdgeInsets.all(25), width: double.infinity, decoration: BoxDecoration(gradient: const LinearGradient(colors: [Colors.orange, Colors.deepOrange]), borderRadius: BorderRadius.circular(30)), child: Column(children: [const Icon(Icons.stars, color: Colors.white, size: 50), Text(_lotteryBannerTitle, style: const TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold)), Text(_lotteryBannerPrize, style: const TextStyle(color: Colors.white70)), const SizedBox(height: 15), ElevatedButton(onPressed: () => _processPurchase(int.tryParse(_lotteryEntryFee.replaceAll(',', '')) ?? 10000, "ورودی قرعه‌کشی", "ثبت‌نام قرعه‌کشی"), style: ElevatedButton.styleFrom(backgroundColor: Colors.white, foregroundColor: Colors.orange), child: const Text('شرکت در قرعه‌کشی'))])),
+    Container(padding: const EdgeInsets.all(25), width: double.infinity, decoration: BoxDecoration(gradient: const LinearGradient(colors: [Colors.orange, Colors.deepOrange]), borderRadius: BorderRadius.circular(30)), child: Column(children: [const Icon(Icons.stars, color: Colors.white, size: 50), Text(_lotteryBannerTitle, style: const TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold)), Text(_lotteryBannerPrize, style: const TextStyle(color: Colors.white70)), const SizedBox(height: 15), ElevatedButton(onPressed: () => _handleDirectPayment(int.tryParse(_lotteryEntryFee.replaceAll(',', '')) ?? 10000, "ورودی قرعه‌کشی", "ثبت‌نام قرعه‌کشی"), style: ElevatedButton.styleFrom(backgroundColor: Colors.white, foregroundColor: Colors.orange), child: const Text('شرکت در قرعه‌کشی'))])),
     const SizedBox(height: 25),
     const Text('🎁 جوایز این دوره', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
     const SizedBox(height: 10),
@@ -201,40 +191,25 @@ class _HomePageState extends State<HomePage> {
   Widget _buildProfileContent() {
     return SingleChildScrollView(padding: const EdgeInsets.all(20), child: Column(children: [
       Container(
-        padding: const EdgeInsets.all(25), width: double.infinity, decoration: BoxDecoration(gradient: const LinearGradient(colors: [Colors.orange, Colors.deepOrange]), borderRadius: BorderRadius.circular(30), boxShadow: [BoxShadow(color: Colors.orange.withOpacity(0.3), blurRadius: 15)]),
+        padding: const EdgeInsets.all(30), width: double.infinity, decoration: BoxDecoration(gradient: const LinearGradient(colors: [Colors.orange, Colors.deepOrange]), borderRadius: BorderRadius.circular(30), boxShadow: [BoxShadow(color: Colors.orange.withOpacity(0.3), blurRadius: 15)]),
         child: Column(children: [
           const CircleAvatar(radius: 45, backgroundColor: Colors.white, child: Icon(Icons.person, size: 50, color: Colors.orange)),
           const SizedBox(height: 15), Text(widget.userName, style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold)),
           Container(padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4), decoration: BoxDecoration(color: Colors.black12, borderRadius: BorderRadius.circular(10)), child: Text('نام کاربری: $_username', style: const TextStyle(color: Colors.white70, fontSize: 13))),
         ]),
       ),
-      const SizedBox(height: 25),
-      Card(shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)), child: Padding(padding: const EdgeInsets.all(20), child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-        Column(crossAxisAlignment: CrossAxisAlignment.start, children: [const Text('موجودی کیف پول', style: TextStyle(color: Colors.grey)), Text('$_walletBalance تومان', style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.green))]),
-        ElevatedButton(onPressed: () => _showRecharge(), style: ElevatedButton.styleFrom(backgroundColor: Colors.orange, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))), child: const Text('شارژ آنی'))
-      ]))),
-      const SizedBox(height: 15),
-      _buildProfileMenu(Icons.history, 'تاریخچه تراکنش‌ها', _showTransactions),
+      const SizedBox(height: 30),
       _buildProfileMenu(Icons.admin_panel_settings, 'مدیریت برنامه', () { if (widget.userPhone == _adminPhone) Navigator.push(context, MaterialPageRoute(builder: (c) => AdminPanel(instaProducts: _instaProducts, telegramProducts: _telegramProducts, otherProducts: _otherProducts, lotteryWinners: _lotteryWinners, prizes: _prizes, allOrders: _allOrders, appUsers: _appUsers, bannerTitle: _lotteryBannerTitle, bannerPrize: _lotteryBannerPrize, bannerDate: _lotteryBannerDate, insta: _instaID, tele: _telegramID, mail: _supportEmail, paymentLink: _paymentLink, lotteryFee: _lotteryEntryFee, lotteryRules: _lotteryRules, supTele: _supTele, supWA: _supWhatsApp, catInsta: _catInstaName, catTele: _catTeleName, catOther: _catOtherName, onUpdate: () => _fetchSupabaseData()))); }),
+      _buildProfileMenu(Icons.info_outline, 'درباره پیکو مارکت', () {}),
       const SizedBox(height: 30),
       ElevatedButton.icon(onPressed: () async { (await SharedPreferences.getInstance()).clear(); Navigator.pushAndRemoveUntil(context, MaterialPageRoute(builder: (c) => const RegisterPage()), (r) => false); }, icon: const Icon(Icons.logout), label: const Text('خروج از حساب کاربری'), style: ElevatedButton.styleFrom(backgroundColor: Colors.redAccent.withOpacity(0.1), foregroundColor: Colors.redAccent, elevation: 0, minimumSize: const Size(double.infinity, 55))),
     ]));
   }
-  Widget _buildProfileMenu(IconData i, String t, VoidCallback onTap) => Card(margin: const EdgeInsets.only(bottom: 10), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)), child: ListTile(leading: Icon(i, color: Colors.orange), title: Text(t), trailing: const Icon(Icons.chevron_right, size: 18), onTap: onTap));
+  Widget _buildProfileMenu(IconData i, String t, VoidCallback onTap) => Card(margin: const EdgeInsets.only(bottom: 12), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)), child: ListTile(leading: Icon(i, color: Colors.orange), title: Text(t), trailing: const Icon(Icons.chevron_right, size: 18), onTap: onTap));
 
   void _showSupportDialog() { showModalBottomSheet(context: context, shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(30))), builder: (c) => Container(padding: const EdgeInsets.all(30), child: Column(mainAxisSize: MainAxisSize.min, children: [const Text('📞 مرکز پشتیبانی پیکو', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)), const SizedBox(height: 25), _buildSupTile(Icons.telegram, 'پشتیبانی تلگرام', _supTele, Colors.blue), _buildSupTile(Icons.message, 'پشتیبانی واتس‌اپ', _supWhatsApp, Colors.green), const SizedBox(height: 10), const Text('ساعت پاسخگویی: ۹ صبح الی ۲۳ شب', style: TextStyle(color: Colors.grey, fontSize: 12))]))); }
   Widget _buildSupTile(IconData i, String t, String v, Color c) => Card(shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)), child: ListTile(leading: Icon(i, color: c), title: Text(t), subtitle: Text(v), trailing: const Icon(Icons.open_in_new, size: 18), onTap: () => launchUrl(Uri.parse(t.contains('تلگرام') ? "https://t.me/${v.replaceAll('@', '')}" : "https://wa.me/$v"))));
 
-  void _showTransactions() => showDialog(context: context, builder: (c) => AlertDialog(title: const Text('تاریخچه تراکنش‌ها'), content: SizedBox(width: double.maxFinite, height: 400, child: _myTransactions.isEmpty ? const Center(child: Text('تراکنشی یافت نشد')) : ListView.builder(itemCount: _myTransactions.length, itemBuilder: (c, i) => ListTile(title: Text(_myTransactions[i].title), subtitle: Text(_myTransactions[i].date), trailing: Text('${_myTransactions[i].amount} تومان', style: TextStyle(color: _myTransactions[i].amount.contains('-') ? Colors.red : Colors.green, fontWeight: FontWeight.bold)))))));
-  void _showRecharge({int? requiredAmount}) {
-    showModalBottomSheet(context: context, shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(30))), builder: (c) => Container(padding: const EdgeInsets.all(25), child: Column(mainAxisSize: MainAxisSize.min, children: [
-      const Text('💎 شارژ کیف پول', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-      if (requiredAmount != null) Padding(padding: const EdgeInsets.all(8.0), child: Text('موجودی کافی نیست. حداقل ${requiredAmount - _walletBalance} تومان شارژ کنید.', style: const TextStyle(color: Colors.red, fontSize: 13))),
-      const SizedBox(height: 15),
-      Wrap(spacing: 10, runSpacing: 10, alignment: WrapAlignment.center, children: [for (var a in [200000, 400000, 600000, 800000, 1000000]) InkWell(onTap: () => _handleRecharge(a), child: Container(padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 12), decoration: BoxDecoration(color: Colors.orange.withOpacity(0.1), borderRadius: BorderRadius.circular(15), border: Border.all(color: Colors.orange)), child: Text('$a تومان', style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.orange))))])
-    ])));
-  }
-  Future<void> _handleRecharge(int a) async { Navigator.pop(context); launchUrl(Uri.parse(_paymentLink)); _showLoading('در حال استعلام از درگاه...'); await Future.delayed(const Duration(seconds: 4)); Navigator.pop(context); _walletBalance += a; await _supabase.from('app_users').update({'wallet_balance': _walletBalance}).eq('phone', widget.userPhone); await _supabase.from('wallet_transactions').insert({'user_phone': widget.userPhone, 'amount': a, 'type': 'شارژ حساب', 'title': 'افزایش موجودی', 'date': DateTime.now().toString().split('.')[0]}); _fetchSupabaseData(); _showSuccess('کیف پول با موفقیت شارژ شد.'); }
   void _showLoading(String m) => showDialog(context: context, builder: (c) => AlertDialog(content: Column(mainAxisSize: MainAxisSize.min, children: [const CircularProgressIndicator(color: Colors.orange), const SizedBox(height: 15), Text(m)])));
   void _showSuccess(String m) => showDialog(context: context, builder: (c) => AlertDialog(title: const Icon(Icons.check_circle, color: Colors.green, size: 50), content: Text(m, textAlign: TextAlign.center), actions: [Center(child: TextButton(onPressed: () => Navigator.pop(c), child: const Text('فهمیدم')))]));
 }
@@ -285,7 +260,7 @@ class _AdminPanelState extends State<AdminPanel> {
 
   Widget _buildUsersTab() {
     var filtered = widget.appUsers.where((u) => u.username.contains(_searchQuery) || u.name.contains(_searchQuery)).toList();
-    return ListView.builder(itemCount: filtered.length, itemBuilder: (c, i) => Card(child: ListTile(title: Text(filtered[i].name), subtitle: Text('${filtered[i].username} | موجودی: ${filtered[i].walletBalance}'), trailing: IconButton(icon: Icon(Icons.block, color: filtered[i].isBanned ? Colors.grey : Colors.red), onPressed: () async { await _supabase.from('app_users').update({'is_banned': true}).eq('phone', filtered[i].phone); }))));
+    return ListView.builder(itemCount: filtered.length, itemBuilder: (c, i) => Card(child: ListTile(title: Text(filtered[i].name), subtitle: Text(filtered[i].username), trailing: IconButton(icon: Icon(Icons.block, color: filtered[i].isBanned ? Colors.grey : Colors.red), onPressed: () async { await _supabase.from('app_users').update({'is_banned': true}).eq('phone', filtered[i].phone); }))));
   }
   Widget _buildOrdersTab() {
     var filtered = _tempOrders.where((o) => o.username.contains(_searchQuery) || o.userName.contains(_searchQuery)).toList();
@@ -321,9 +296,9 @@ class _AdminPanelState extends State<AdminPanel> {
     ]), actions: [TextButton(onPressed: () => Navigator.pop(c), child: const Text('انصراف')), ElevatedButton(onPressed: () { if (t.text.isEmpty) return; setState(() => l.add(Product(title: t.text, price: '${p.text} تومان', quality: 'عالی', imageUrl: imgUrl ?? '', category: k, priceInt: int.tryParse(p.text) ?? 0))); Navigator.pop(c); }, child: const Text('افزودن'))])));
   }
   Widget _buildLotteryMgmtTab() => Column(children: [ElevatedButton(onPressed: _addPrize, child: const Text('افزودن جایزه جدید')), Expanded(child: ListView.builder(itemCount: _tempPrizes.length, itemBuilder: (c, i) => Card(child: ListTile(title: Text(_tempPrizes[i].title), subtitle: Text(_tempPrizes[i].amount), trailing: IconButton(icon: const Icon(Icons.delete), onPressed: () => setState(() => _tempPrizes.removeAt(i)))))))]);
-  void _addPrize() { TextEditingController t = TextEditingController(), a = TextEditingController(); showDialog(context: context, builder: (c) => AlertDialog(title: const Text('جایزه'), content: Column(mainAxisSize: MainAxisSize.min, children: [TextField(controller: t, decoration: const InputDecoration(labelText: 'عنوان')), TextField(controller: a, decoration: const InputDecoration(labelText: 'مبلغ/توضیح'))]), actions: [ElevatedButton(onPressed: () { setState(() => _tempPrizes.add(PrizeRecord(title: t.text, amount: a.text, iconCode: Icons.stars.codePoint, colorValue: Colors.orange.value))); Navigator.pop(c); }, child: const Text('ثبت'))])); }
+  void _addPrize() { TextEditingController t = TextEditingController(), a = TextEditingController(); showDialog(context: context, builder: (c) => AlertDialog(title: const Text('جایزه'), content: Column(mainAxisSize: MyAxisSize.min, children: [TextField(controller: t, decoration: const InputDecoration(labelText: 'عنوان')), TextField(controller: a, decoration: const InputDecoration(labelText: 'مبلغ/توضیح'))]), actions: [ElevatedButton(onPressed: () { setState(() => _tempPrizes.add(PrizeRecord(title: t.text, amount: a.text, iconCode: Icons.stars.codePoint, colorValue: Colors.orange.value))); Navigator.pop(c); }, child: const Text('ثبت'))])); }
   Widget _buildWinnersTab() => Column(children: [ElevatedButton(onPressed: _addWinner, child: const Text('افزودن برنده')), Expanded(child: ListView.builder(itemCount: _tempWinners.length, itemBuilder: (c, i) => Card(child: ListTile(title: Text(_tempWinners[i].name), subtitle: Text(_tempWinners[i].city), trailing: IconButton(icon: const Icon(Icons.delete), onPressed: () => setState(() => _tempWinners.removeAt(i)))))))]);
-  void _addWinner() { TextEditingController n = TextEditingController(), ci = TextEditingController(), p = TextEditingController(), d = TextEditingController(); showDialog(context: context, builder: (c) => AlertDialog(content: Column(mainAxisSize: MainAxisSize.min, children: [TextField(controller: n, decoration: const InputDecoration(labelText: 'نام')), TextField(controller: ci, decoration: const InputDecoration(labelText: 'شهر')), TextField(controller: p, decoration: const InputDecoration(labelText: 'جایزه')), TextField(controller: d, decoration: const InputDecoration(labelText: 'تاریخ'))]), actions: [ElevatedButton(onPressed: () { setState(() => _tempWinners.add(Winner(name: n.text, city: ci.text, prize: p.text, date: d.text))); Navigator.pop(c); }, child: const Text('ثبت'))])); }
+  void _addWinner() { TextEditingController n = TextEditingController(), ci = TextEditingController(), p = TextEditingController(), d = TextEditingController(); showDialog(context: context, builder: (c) => AlertDialog(content: Column(mainAxisSize: MyAxisSize.min, children: [TextField(controller: n, decoration: const InputDecoration(labelText: 'نام')), TextField(controller: ci, decoration: const InputDecoration(labelText: 'شهر')), TextField(controller: p, decoration: const InputDecoration(labelText: 'جایزه')), TextField(controller: d, decoration: const InputDecoration(labelText: 'تاریخ'))]), actions: [ElevatedButton(onPressed: () { setState(() => _tempWinners.add(Winner(name: n.text, city: ci.text, prize: p.text, date: d.text))); Navigator.pop(c); }, child: const Text('ثبت'))])); }
   Widget _buildSettingsTab() => SingleChildScrollView(padding: const EdgeInsets.all(20), child: Column(children: [_buildStyledField(_sTel, 'آیدی تلگرام پشتیبانی', Icons.telegram), _buildStyledField(_sWA, 'شماره واتس‌اپ پشتیبانی', Icons.message), _buildStyledField(_rules, 'قوانین قرعه‌کشی', Icons.gavel), _buildStyledField(_pay, 'لینک درگاه پرداخت', Icons.link), _buildStyledField(_fee, 'هزینه ورودی قرعه', Icons.payments), _buildStyledField(_title, 'عنوان بنر قرعه', Icons.title), _buildStyledField(_prize, 'جایزه بنر قرعه', Icons.card_giftcard), _buildStyledField(_date, 'تاریخ بنر قرعه', Icons.event), _buildStyledField(_cInsta, 'نام طبقه ۱', Icons.label), _buildStyledField(_cTele, 'نام طبقه ۲', Icons.label), _buildStyledField(_cOther, 'نام طبقه ۳', Icons.label)]));
   Widget _buildStyledField(TextEditingController c, String l, IconData i) => Padding(padding: const EdgeInsets.only(bottom: 15), child: TextField(controller: c, decoration: InputDecoration(labelText: l, prefixIcon: Icon(i, color: Colors.orange), border: OutlineInputBorder(borderRadius: BorderRadius.circular(15)))));
 }
