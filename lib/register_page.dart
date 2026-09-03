@@ -32,7 +32,10 @@ class _RegisterPageState extends State<RegisterPage> {
         throw 'حساب کاربری شما به دلیل تخلف مسدود شده است.';
       }
 
-      String username = userCheck != null ? userCheck['username'] : "PICO-${Random().nextInt(90000) + 10000}";
+      // Safe access to username
+      String username = (userCheck != null && userCheck['username'] != null) 
+          ? userCheck['username'] 
+          : "PICO-${Random().nextInt(90000) + 10000}";
 
       // 2. Referral Logic (Only for new users)
       int initialBonus = 0;
@@ -40,13 +43,13 @@ class _RegisterPageState extends State<RegisterPage> {
         final referrer = await _supabase.from('app_users').select().eq('username', refCode).maybeSingle();
         if (referrer != null) {
           final config = await _supabase.from('app_config').select('value').eq('key', 'referral_bonus').maybeSingle();
-          int bonus = int.tryParse(config?['value'] ?? '5000') ?? 5000;
+          int bonus = int.tryParse(config?['value']?.toString() ?? '5000') ?? 5000;
           initialBonus = bonus;
 
           // Reward Referrer
           await _supabase.from('app_users').update({'wallet_balance': (referrer['wallet_balance'] ?? 0) + bonus}).eq('username', refCode);
           await _supabase.from('wallet_transactions').insert({
-            'user_phone': referrer['phone'],
+            'user_phone': referrer['phone'] ?? '',
             'amount': bonus,
             'type': 'هدیه دعوت',
             'description': 'پاداش دعوت از $name',
@@ -64,7 +67,7 @@ class _RegisterPageState extends State<RegisterPage> {
         'last_login': DateTime.now().toIso8601String(),
       }, onConflict: 'phone');
 
-      if (initialBonus > 0) {
+      if (userCheck == null && initialBonus > 0) {
         await _supabase.from('wallet_transactions').insert({
           'user_phone': phone,
           'amount': initialBonus,
@@ -82,7 +85,7 @@ class _RegisterPageState extends State<RegisterPage> {
       if (!mounted) return;
       Navigator.pushReplacement(context, MaterialPageRoute(builder: (c) => HomePage(userName: name, userPhone: phone, userEmail: '')));
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.toString()), backgroundColor: Colors.red));
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('خطا: ${e.toString()}'), backgroundColor: Colors.red));
     } finally {
       setState(() => _isLoading = false);
     }
@@ -100,7 +103,7 @@ class _RegisterPageState extends State<RegisterPage> {
           _buildField(_phoneController, 'شماره تماس ایرانی', Icons.phone, type: TextInputType.phone),
           _buildField(_referralController, 'کد دعوت (اختیاری)', Icons.card_giftcard, isOptional: true),
           const SizedBox(height: 30),
-          ElevatedButton(onPressed: _isLoading ? null : _registerAndEnter, style: ElevatedButton.styleFrom(backgroundColor: Colors.orange, minimumSize: const Size(double.infinity, 55)), child: _isLoading ? const CircularProgressIndicator() : const Text('ورود امن به برنامه'))
+          ElevatedButton(onPressed: _isLoading ? null : _registerAndEnter, style: ElevatedButton.styleFrom(backgroundColor: Colors.orange, minimumSize: const Size(double.infinity, 55)), child: _isLoading ? const CircularProgressIndicator(color: Colors.black) : const Text('ورود امن به برنامه'))
         ])),
       ),
     );
@@ -108,10 +111,7 @@ class _RegisterPageState extends State<RegisterPage> {
 
   Widget _buildField(TextEditingController c, String l, IconData i, {TextInputType type = TextInputType.text, bool isOptional = false}) {
     return Padding(padding: const EdgeInsets.only(bottom: 15), child: TextFormField(
-      controller: c, 
-      keyboardType: type, 
-      textAlign: TextAlign.right, 
-      decoration: InputDecoration(labelText: l, prefixIcon: Icon(i), border: OutlineInputBorder(borderRadius: BorderRadius.circular(15))), 
+      controller: c, keyboardType: type, textAlign: TextAlign.right, decoration: InputDecoration(labelText: l, prefixIcon: Icon(i), border: OutlineInputBorder(borderRadius: BorderRadius.circular(15))), 
       validator: (v) {
         if (isOptional) return null;
         if (v == null || v.trim().isEmpty) return 'این فیلد الزامی است';

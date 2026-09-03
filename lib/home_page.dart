@@ -11,7 +11,7 @@ import 'dart:io';
 class AppUserRecord {
   final String name, phone, username, lastLogin; bool isBanned;
   AppUserRecord({required this.name, required this.phone, required this.username, required this.lastLogin, this.isBanned = false});
-  factory AppUserRecord.fromJson(Map<String, dynamic> json) => AppUserRecord(name: json['name'] ?? '', phone: json['phone'] ?? '', username: json['username'] ?? '', lastLogin: json['last_login'] ?? '', isBanned: json['is_banned'] ?? false);
+  factory AppUserRecord.fromJson(Map<String, dynamic> json) => AppUserRecord(name: json['name'] ?? '', phone: json['phone'] ?? '', username: json['username'] ?? 'User', lastLogin: json['last_login'] ?? '', isBanned: json['is_banned'] ?? false);
 }
 
 class Product {
@@ -47,7 +47,7 @@ class OrderRecord {
 class WalletTransaction {
   final String title, amount, type, date;
   WalletTransaction({required this.title, required this.amount, required this.type, required this.date});
-  factory WalletTransaction.fromJson(Map<String, dynamic> json) => WalletTransaction(title: json['title'] ?? 'شارژ/خرید', amount: json['amount'].toString(), type: json['type'] ?? '', date: json['date'] ?? '');
+  factory WalletTransaction.fromJson(Map<String, dynamic> json) => WalletTransaction(title: json['title'] ?? 'شارژ/خرید', amount: (json['amount'] ?? 0).toString(), type: json['type'] ?? '', date: json['date'] ?? '');
 }
 
 class AppNews {
@@ -122,7 +122,7 @@ class _HomePageState extends State<HomePage> {
     try {
       final configRes = await _supabase.from('app_config').select();
       for (var item in configRes) {
-        String k = item['key'], v = item['value'];
+        String k = item['key'] ?? '', v = item['value']?.toString() ?? '';
         if (k == 'lottery_banner_title') _lotteryBannerTitle = v;
         if (k == 'lottery_banner_prize') _lotteryBannerPrize = v;
         if (k == 'lottery_banner_date') _lotteryBannerDate = v;
@@ -156,21 +156,8 @@ class _HomePageState extends State<HomePage> {
       _allAds = (await _supabase.from('ads').select().order('created_at', ascending: false)).map((e) => AppAd.fromJson(e)).toList();
       _myTickets = _allTickets.where((t) => t.userPhone == widget.userPhone).toList();
       _myTransactions = (await _supabase.from('wallet_transactions').select().eq('user_phone', widget.userPhone).order('created_at', ascending: false)).map((e) => WalletTransaction.fromJson(e)).toList();
-      _assistantAutoScan();
     } catch (e) { debugPrint('Supabase Error: $e'); }
     if (mounted) setState(() => _isLoading = false);
-  }
-
-  Future<void> _assistantAutoScan() async {
-    final prefs = await SharedPreferences.getInstance();
-    for (var order in _allOrders.where((o) => o.userPhone == widget.userPhone)) {
-      String key = 'order_status_${order.id}';
-      String? lastStatus = prefs.getString(key);
-      if (lastStatus != null && lastStatus != order.status) {
-        await _supabase.from('messages').insert({'user_phone': widget.userPhone, 'title': 'بروزرسانی سفارش', 'content': "سفارش '${order.productTitle}' به وضعیت '${order.status}' تغییر یافت.", 'date': DateTime.now().toString().split('.')[0]});
-      }
-      await prefs.setString(key, order.status);
-    }
   }
 
   @override
@@ -200,7 +187,7 @@ class _HomePageState extends State<HomePage> {
 
   void _showAssistantDialog() {
     TextEditingController query = TextEditingController(); List<Map<String, String>> chatHistory = [{"role": "bot", "msg": _aiBase}];
-    showModalBottomSheet(context: context, isScrollControlled: true, shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(30))), builder: (c) => StatefulBuilder(builder: (c, setS) => Container(padding: EdgeInsets.only(bottom: MediaQuery.of(c).viewInsets.bottom, left: 20, right: 20, top: 20), height: MediaQuery.of(c).size.height * 0.8, child: Column(children: [Row(children: [const Icon(Icons.psychology, color: Colors.purple), const SizedBox(width: 10), const Text('دستیار هوشمند'), const Spacer(), IconButton(onPressed: () => Navigator.pop(c), icon: const Icon(Icons.close))]), Expanded(child: ListView.builder(itemCount: chatHistory.length, itemBuilder: (c, i) => _buildChatBubble(chatHistory[i]))), Padding(padding: const EdgeInsets.symmetric(vertical: 10), child: Row(children: [Expanded(child: TextField(controller: query, decoration: const InputDecoration(hintText: 'سوال بپرسید...', border: OutlineInputBorder(borderRadius: BorderRadius.all(Radius.circular(15)))))), IconButton(onPressed: () { if (query.text.trim().isEmpty) return; setS(() { chatHistory.add({"role": "user", "msg": query.text.trim()}); chatHistory.add({"role": "bot", "msg": "در خدمتم! سوالی در مورد پیکو مارکت دارید؟"}); query.clear(); }); }, icon: const Icon(Icons.send, color: Colors.purple))]))]))));
+    showModalBottomSheet(context: context, isScrollControlled: true, shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(30))), builder: (c) => StatefulBuilder(builder: (c, setS) => Container(padding: EdgeInsets.only(bottom: MediaQuery.of(c).viewInsets.bottom, left: 20, right: 20, top: 20), height: MediaQuery.of(c).size.height * 0.8, child: Column(children: [Row(children: [const Icon(Icons.psychology, color: Colors.purple), const SizedBox(width: 10), const Text('دستیار هوشمند'), const Spacer(), IconButton(onPressed: () => Navigator.pop(c), icon: const Icon(Icons.close))]), Expanded(child: ListView.builder(itemCount: chatHistory.length, itemBuilder: (c, i) => _buildChatBubble(chatHistory[i]))), Padding(padding: const EdgeInsets.symmetric(vertical: 10), child: Row(children: [Expanded(child: TextField(controller: query, decoration: const InputDecoration(hintText: 'سوال بپرسید...', border: OutlineInputBorder(borderRadius: BorderRadius.all(Radius.circular(15)))))), IconButton(onPressed: () { if (query.text.trim().isEmpty) return; setS(() { chatHistory.add({"role": "user", "msg": query.text.trim()}); chatHistory.add({"role": "bot", "msg": "در خدمتم! سوالی دارید؟"}); query.clear(); }); }, icon: const Icon(Icons.send, color: Colors.purple))]))]))));
   }
   Widget _buildChatBubble(Map<String, String> chat) => Align(alignment: chat['role'] == 'bot' ? Alignment.centerRight : Alignment.centerLeft, child: Container(margin: const EdgeInsets.symmetric(vertical: 5), padding: const EdgeInsets.all(15), decoration: BoxDecoration(color: chat['role'] == 'bot' ? Colors.grey[200] : Colors.purple.withOpacity(0.1), borderRadius: BorderRadius.circular(15)), child: Text(chat['msg']!)));
 
@@ -220,7 +207,7 @@ class _HomePageState extends State<HomePage> {
   Widget _buildProductCard(Product p) => Container(width: 165, margin: const EdgeInsets.all(8), decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(20), boxShadow: [BoxShadow(color: Colors.black12, blurRadius: 10)]), child: Column(children: [const SizedBox(height: 15), Image.network(p.imageUrl, height: 65, errorBuilder: (c, e, s) => const Icon(Icons.image, size: 60)), const SizedBox(height: 15), Text(p.title, textAlign: TextAlign.center, style: const TextStyle(fontWeight: FontWeight.bold), maxLines: 1), const Spacer(), Text(p.price, style: const TextStyle(color: Colors.orange, fontWeight: FontWeight.bold)), Container(width: double.infinity, margin: const EdgeInsets.all(10), child: ElevatedButton(onPressed: () { setState(() => _cart.add(p)); ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('اضافه شد'))); }, child: const Text('افزودن')))]));
   void _showCartDialog() {
     int total = _cart.fold(0, (sum, item) => sum + item.priceInt);
-    showModalBottomSheet(context: context, isScrollControlled: true, shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(30))), builder: (c) => StatefulBuilder(builder: (c, setS) => Container(padding: const EdgeInsets.all(25), height: MediaQuery.of(context).size.height * 0.7, child: Column(children: [const Text('🛒 سبد خرید', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)), Expanded(child: ListView.builder(itemCount: _cart.length, itemBuilder: (c, i) => ListTile(title: Text(_cart[i].title), trailing: IconButton(icon: const Icon(Icons.delete, color: Colors.red), onPressed: () { setState(() => _cart.removeAt(i)); setS(() {}); } )))), const Divider(), Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [const Text('مجموع:'), Text('$total تومان')]), ElevatedButton(onPressed: _cart.isEmpty ? null : () => _processOrder(total), style: ElevatedButton.styleFrom(backgroundColor: Colors.orange, minimumSize: const Size(double.infinity, 55)), child: const Text('پرداخت'))]))));
+    showModalBottomSheet(context: context, isScrollControlled: true, shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(30))), builder: (c) => StatefulBuilder(builder: (c, setS) => Container(padding: const EdgeInsets.all(25), height: MediaQuery.of(context).size.height * 0.7, child: Column(children: [const Text('🛒 سبد خرید', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)), Expanded(child: ListView.builder(itemCount: _cart.length, itemBuilder: (c, i) => ListTile(title: Text(_cart[i].title), trailing: IconButton(icon: const Icon(Icons.delete, color: Colors.red), onPressed: () { setState(() => _cart.removeAt(i)); setS(() {}); } )))), const Divider(), Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [const Text('مجموع:'), Text('$total تومان')]), ElevatedButton(onPressed: _cart.isEmpty ? null : () => _processOrder(total), child: const Text('پرداخت'))]))));
   }
   Future<void> _processOrder(int total) async {
     if (_walletBalance >= total) {
@@ -278,7 +265,7 @@ class _HomePageState extends State<HomePage> {
   }
   void _showTicketDetail(SupportTicket t) { showDialog(context: context, builder: (c) => AlertDialog(title: const Text('جزئیات'), content: Column(mainAxisSize: MainAxisSize.min, children: [
     Text('پیام: ${t.message}'), const SizedBox(height: 10),
-    if (t.imageUrl.isNotEmpty) InkWell(onTap: () => launchUrl(Uri.parse(t.imageUrl)), child: const Text('🖼 مشاهده تصویر پیوست', style: TextStyle(color: Colors.blue, decoration: TextDecoration.underline))),
+    if (t.imageUrl != null && t.imageUrl!.isNotEmpty) InkWell(onTap: () => launchUrl(Uri.parse(t.imageUrl!)), child: const Text('🖼 مشاهده تصویر پیوست', style: TextStyle(color: Colors.blue, decoration: TextDecoration.underline))),
     const SizedBox(height: 10), Text('پاسخ: ${t.adminReply.isEmpty ? "خالی" : t.adminReply}')
   ]))); }
 
@@ -374,7 +361,7 @@ class _AdminPanelState extends State<AdminPanel> {
   Widget _buildCategoryMgmt(String t, List<Product> l, String k) => Card(child: Column(children: [ListTile(title: Text(t)), ...l.map((e) => ListTile(title: Text(e.title), trailing: IconButton(icon: const Icon(Icons.delete), onPressed: () => setState(() => l.remove(e))))), ElevatedButton(onPressed: () => _addProduct(l, k), child: const Text('افزودن'))]));
   void _addProduct(List<Product> l, String k) { TextEditingController t = TextEditingController(), p = TextEditingController(); showDialog(context: context, builder: (c) => AlertDialog(content: Column(mainAxisSize: MainAxisSize.min, children: [TextField(controller: t, decoration: const InputDecoration(labelText: 'نام')), TextField(controller: p, decoration: const InputDecoration(labelText: 'قیمت'))]), actions: [ElevatedButton(onPressed: () { setState(() => l.add(Product(title: t.text, price: '${p.text} تومان', quality: 'عالی', imageUrl: '', category: k, priceInt: int.tryParse(p.text) ?? 0))); Navigator.pop(c); }, child: const Text('افزودن'))])); }
   Widget _buildLotteryMgmtTab() => Column(children: [ElevatedButton(onPressed: _addWinner, child: const Text('افزودن برنده')), Expanded(child: ListView.builder(itemCount: _tempWinners.length, itemBuilder: (c, i) => Card(child: ListTile(title: Text(_tempWinners[i].name), subtitle: Text(_tempWinners[i].city), trailing: IconButton(icon: const Icon(Icons.delete), onPressed: () => setState(() => _tempWinners.removeAt(i)))))))]);
-  void _addWinner() { TextEditingController n = TextEditingController(), ci = TextEditingController(), p = TextEditingController(), d = TextEditingController(); showDialog(context: context, builder: (c) => AlertDialog(content: Column(mainAxisSize: MainAxisSize.min, children: [TextField(controller: n, decoration: const InputDecoration(labelText: 'نام')), TextField(controller: ci, decoration: const InputDecoration(labelText: 'شهر')), TextField(controller: p, decoration: const InputDecoration(labelText: 'جایزه')), TextField(controller: d, decoration: const InputDecoration(labelText: 'تاریخ'))]), actions: [ElevatedButton(onPressed: () { setState(() => _tempWinners.add(Winner(name: n.text, city: ci.text, prize: p.text, date: d.text))); Navigator.pop(c); }, child: const Text('ثبت'))])); }
+  void _addWinner() { TextEditingController n = TextEditingController(), ci = TextEditingController(), p = TextEditingController(), d = TextEditingController(); showDialog(context: context, builder: (c) => AlertDialog(content: Column(mainAxisSize: MyAxisSize.min, children: [TextField(controller: n, decoration: const InputDecoration(labelText: 'نام')), TextField(controller: ci, decoration: const InputDecoration(labelText: 'شهر')), TextField(controller: p, decoration: const InputDecoration(labelText: 'جایزه')), TextField(controller: d, decoration: const InputDecoration(labelText: 'تاریخ'))]), actions: [ElevatedButton(onPressed: () { setState(() => _tempWinners.add(Winner(name: n.text, city: ci.text, prize: p.text, date: d.text))); Navigator.pop(c); }, child: const Text('ثبت'))])); }
   Widget _buildSettingsTab() => SingleChildScrollView(padding: const EdgeInsets.all(20), child: Column(children: [_buildStyledField(_ai, 'جمله AI', Icons.psychology), _buildStyledField(_rules, 'قوانین', Icons.gavel), _buildStyledField(_cInsta, 'طبقه ۱', Icons.label), _buildStyledField(_cTele, 'طبقه ۲', Icons.label), _buildStyledField(_cOther, 'طبقه ۳', Icons.label), _buildStyledField(_pay, 'لینک پرداخت', Icons.link), _buildStyledField(_fee, 'ورودی', Icons.payments), _buildStyledField(_title, 'عنوان بنر', Icons.title), _buildStyledField(_prize, 'جایزه بنر', Icons.card_giftcard), _buildStyledField(_date, 'تاریخ بنر', Icons.event)]));
   Widget _buildStyledField(TextEditingController c, String l, IconData i) => Padding(padding: const EdgeInsets.only(bottom: 15), child: TextField(controller: c, decoration: InputDecoration(labelText: l, prefixIcon: Icon(i, color: Colors.orange), border: OutlineInputBorder(borderRadius: BorderRadius.circular(15)))));
 }
