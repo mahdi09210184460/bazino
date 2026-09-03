@@ -173,12 +173,20 @@ class _HomePageState extends State<HomePage> {
     }, child: const Text('تایید و ثبت نهایی'))]));
   }
 
+  IconData _getPrizeIcon(int code) {
+    if (code == Icons.looks_one.codePoint) return Icons.looks_one;
+    if (code == Icons.looks_two.codePoint) return Icons.looks_two;
+    if (code == Icons.looks_3.codePoint) return Icons.looks_3;
+    if (code == Icons.stars.codePoint) return Icons.stars;
+    return Icons.card_giftcard;
+  }
+
   Widget _buildLotteryAndPrizes() => SingleChildScrollView(padding: const EdgeInsets.all(16), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
     Container(padding: const EdgeInsets.all(25), width: double.infinity, decoration: BoxDecoration(gradient: const LinearGradient(colors: [Colors.orange, Colors.deepOrange]), borderRadius: BorderRadius.circular(30)), child: Column(children: [const Icon(Icons.stars, color: Colors.white, size: 50), Text(_lotteryBannerTitle, style: const TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold)), Text(_lotteryBannerPrize, style: const TextStyle(color: Colors.white70)), const SizedBox(height: 15), ElevatedButton(onPressed: () => _handleDirectPayment(int.tryParse(_lotteryEntryFee.replaceAll(',', '')) ?? 10000, "ورودی قرعه‌کشی", "ثبت‌نام قرعه‌کشی"), style: ElevatedButton.styleFrom(backgroundColor: Colors.white, foregroundColor: Colors.orange), child: const Text('شرکت در قرعه‌کشی'))])),
     const SizedBox(height: 25),
     const Text('🎁 جوایز این دوره', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
     const SizedBox(height: 10),
-    SizedBox(height: 160, child: ListView.builder(scrollDirection: Axis.horizontal, itemCount: _prizes.length, itemBuilder: (c, i) => Card(shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)), child: Container(width: 130, padding: const EdgeInsets.all(10), child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [Icon(IconData(_prizes[i].iconCode, fontFamily: 'MaterialIcons'), size: 35, color: Color(_prizes[i].colorValue)), const SizedBox(height: 10), Text(_prizes[i].title, style: const TextStyle(fontWeight: FontWeight.bold), textAlign: TextAlign.center), Text(_prizes[i].amount, style: const TextStyle(fontSize: 12, color: Colors.grey))]))))),
+    SizedBox(height: 160, child: ListView.builder(scrollDirection: Axis.horizontal, itemCount: _prizes.length, itemBuilder: (c, i) => Card(shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)), child: Container(width: 130, padding: const EdgeInsets.all(10), child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [Icon(_getPrizeIcon(_prizes[i].iconCode), size: 35, color: Color(_prizes[i].colorValue)), const SizedBox(height: 10), Text(_prizes[i].title, style: const TextStyle(fontWeight: FontWeight.bold), textAlign: TextAlign.center), Text(_prizes[i].amount, style: const TextStyle(fontSize: 12, color: Colors.grey))]))))),
     const SizedBox(height: 25),
     const Text('🏆 تالار برندگان', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
     const SizedBox(height: 10),
