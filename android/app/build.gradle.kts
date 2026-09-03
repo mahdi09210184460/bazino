@@ -23,9 +23,10 @@ android {
     }
 
     signingConfigs {
-        create("release") {
-            val keystorePath = keystoreProperties["storeFile"] as String?
-            if (keystorePath != null && file(rootProject.file(keystorePath)).exists()) {
+        // Check if keystore exists before creating the release config
+        val keystorePath = keystoreProperties["storeFile"] as String?
+        if (keystorePath != null && rootProject.file(keystorePath).exists()) {
+            create("release") {
                 keyAlias = keystoreProperties["keyAlias"] as String
                 keyPassword = keystoreProperties["keyPassword"] as String
                 storeFile = rootProject.file(keystorePath)
@@ -44,13 +45,16 @@ android {
 
     buildTypes {
         release {
+            // Only assign release signing if it was successfully created above
             val releaseConfig = signingConfigs.findByName("release")
             if (releaseConfig != null) {
                 signingConfig = releaseConfig
+            } else {
+                signingConfig = signingConfigs.getByName("debug")
             }
             
-            isMinifyEnabled = false // Temporarily disable to fix crash
-            isShrinkResources = false
+            isMinifyEnabled = true
+            isShrinkResources = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
         }
     }
