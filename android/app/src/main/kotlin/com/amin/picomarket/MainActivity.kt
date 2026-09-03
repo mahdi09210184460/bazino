@@ -1,4 +1,4 @@
-package com.example.app_baz
+package com.amin.picomarket
 
 import io.flutter.embedding.android.FlutterActivity
 

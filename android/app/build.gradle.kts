@@ -49,8 +49,8 @@ android {
                 signingConfig = releaseConfig
             }
             
-            isMinifyEnabled = true
-            isShrinkResources = true
+            isMinifyEnabled = false // Temporarily disable to fix crash
+            isShrinkResources = false
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
         }
     }
