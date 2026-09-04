@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -174,6 +175,7 @@ class _HomePageState extends State<HomePage> {
 
   // App Configuration Variables
   String _username = "", _instaID = "pico", _telegramID = "@pico", _supportEmail = "pico@support", _paymentLink = "https://zarrinpal.com", _lotteryEntryFee = "۱۰,۰۰۰", _lotteryRules = "قوانین برنامه", _supTele = "@pico_support", _supWhatsApp = "09000000000";
+  String _lotteryBazaarSKU = "lottery_entry";
   String _catInstaName = "اینستاگرام", _catTeleName = "تلگرام", _catOtherName = "سایر";
   List<Product> _instaProducts = [], _telegramProducts = [], _otherProducts = [];
   List<Winner> _lotteryWinners = [];
@@ -241,6 +243,7 @@ class _HomePageState extends State<HomePage> {
         if (k == 'support_email') _supportEmail = v;
         if (k == 'payment_link') _paymentLink = v;
         if (k == 'lottery_entry_fee') _lotteryEntryFee = v;
+        if (k == 'lottery_bazaar_sku') _lotteryBazaarSKU = v;
         if (k == 'lottery_rules') _lotteryRules = v;
         if (k == 'sup_tele') _supTele = v;
         if (k == 'sup_whatsapp') _supWhatsApp = v;
@@ -475,7 +478,7 @@ class _HomePageState extends State<HomePage> {
       _iap.buyConsumable(purchaseParam: PurchaseParam(productDetails: response.productDetails.first));
     } else {
       // Lottery Entry
-      const String sku = "lottery_entry";
+      String sku = _lotteryBazaarSKU;
       final ProductDetailsResponse response = await _iap.queryProductDetails({sku});
       if (response.notFoundIDs.isNotEmpty) { _showError('آیتم قرعه‌کشی یافت نشد.'); return; }
       _tempTitle = null; // Mark as lottery
@@ -543,7 +546,7 @@ class _HomePageState extends State<HomePage> {
             ElevatedButton(
               onPressed: () => _handleDirectPayment(10000, "بلیط قرعه‌کشی", "قرعه"),
               style: ElevatedButton.styleFrom(backgroundColor: Colors.white, foregroundColor: Colors.orange, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)), padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 15)),
-              child: const Text('شرکت در قرعه‌کشی (۱۰هزار)', style: TextStyle(fontWeight: FontWeight.bold)),
+              child: Text('شرکت در قرعه‌کشی ($_lotteryEntryFee)', style: const TextStyle(fontWeight: FontWeight.bold)),
             ),
           ]),
         ),
@@ -680,7 +683,6 @@ class _HomePageState extends State<HomePage> {
           const SizedBox(height: 25),
           _buildSupTile(Icons.telegram, 'پشتیبانی تلگرام', _supTele, Colors.blue),
           _buildSupTile(Icons.chat, 'پشتیبانی واتس‌اپ', _supWhatsApp, Colors.green),
-          _buildSupTile(Icons.email, 'ایمیل سازمانی', _supportEmail, Colors.orange),
           const SizedBox(height: 20),
         ]),
       ),
@@ -690,6 +692,9 @@ class _HomePageState extends State<HomePage> {
   Widget _buildSupTile(IconData i, String t, String v, Color c) => ListTile(
     leading: Icon(i, color: c), title: Text(t), subtitle: Text(v),
     onTap: () async {
+      Clipboard.setData(ClipboardData(text: v));
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('کپی شد'), duration: Duration(seconds: 2)));
+
       String url = "";
       if (t.contains('تلگرام')) url = "https://t.me/${v.replaceAll('@', '')}";
       else if (t.contains('واتس‌اپ')) url = "https://wa.me/$v";
@@ -719,6 +724,7 @@ class _HomePageState extends State<HomePage> {
                 paymentLink: _paymentLink, lotteryFee: _lotteryEntryFee, lotteryRules: _lotteryRules,
                 supTele: _supTele, supWA: _supWhatsApp, catInsta: _catInstaName, catTele: _catTeleName,
                 catOther: _catOtherName, lotteryMax: _lotteryMaxCapacity, lotteryOffset: _lotteryManualOffset,
+                lotterySKU: _lotteryBazaarSKU,
                 storeEn: _isStoreEnabled, lotteryEn: _isLotteryEnabled, ordersEn: _isOrdersEnabled,
                 newsEn: _isNewsEnabled, supportEn: _isSupportEnabled, onUpdate: () => _fetchSupabaseData()
               )));
@@ -742,12 +748,12 @@ class AdminPanel extends StatefulWidget {
   final List<OrderRecord> allOrders;
   final List<AppUserRecord> appUsers;
   final List<Participant> allParticipants;
-  final String bannerTitle, bannerPrize, bannerDate, insta, tele, mail, paymentLink, lotteryFee, lotteryRules, supTele, supWA, catInsta, catTele, catOther;
+  final String bannerTitle, bannerPrize, bannerDate, insta, tele, mail, paymentLink, lotteryFee, lotteryRules, supTele, supWA, catInsta, catTele, catOther, lotterySKU;
   final int lotteryMax, lotteryOffset;
   final bool storeEn, lotteryEn, ordersEn, newsEn, supportEn;
   final VoidCallback onUpdate;
 
-  AdminPanel({Key? key, required this.instaProducts, required this.telegramProducts, required this.otherProducts, required this.lotteryWinners, required this.prizes, required this.allOrders, required this.appUsers, required this.allParticipants, required this.bannerTitle, required this.bannerPrize, required this.bannerDate, required this.insta, required this.tele, required this.mail, required this.paymentLink, required this.lotteryFee, required this.lotteryRules, required this.supTele, required this.supWA, required this.catInsta, required this.catTele, required this.catOther, required this.lotteryMax, required this.lotteryOffset, required this.storeEn, required this.lotteryEn, required this.ordersEn, required this.newsEn, required this.supportEn, required this.onUpdate}) : super(key: key);
+  AdminPanel({Key? key, required this.instaProducts, required this.telegramProducts, required this.otherProducts, required this.lotteryWinners, required this.prizes, required this.allOrders, required this.appUsers, required this.allParticipants, required this.bannerTitle, required this.bannerPrize, required this.bannerDate, required this.insta, required this.tele, required this.mail, required this.paymentLink, required this.lotteryFee, required this.lotteryRules, required this.supTele, required this.supWA, required this.catInsta, required this.catTele, required this.catOther, required this.lotterySKU, required this.lotteryMax, required this.lotteryOffset, required this.storeEn, required this.lotteryEn, required this.ordersEn, required this.newsEn, required this.supportEn, required this.onUpdate}) : super(key: key);
 
   @override
   _AdminPanelState createState() => _AdminPanelState();
@@ -758,7 +764,7 @@ class _AdminPanelState extends State<AdminPanel> {
   late List<OrderRecord> _tempOrders;
   late List<Winner> _tempWinners;
   late List<PrizeRecord> _tempPrizes;
-  late TextEditingController _title, _prize, _date, _inst, _tel, _mail, _pay, _fee, _rules, _sTel, _sWA, _cInsta, _cTele, _cOther, _lMax, _lOffset;
+  late TextEditingController _title, _prize, _date, _inst, _tel, _mail, _pay, _fee, _rules, _sTel, _sWA, _cInsta, _cTele, _cOther, _lMax, _lOffset, _lSKU;
   late bool _stEn, _ltEn, _orEn, _nwEn, _suEn;
   final SupabaseClient _supabase = Supabase.instance.client;
 
@@ -787,6 +793,7 @@ class _AdminPanelState extends State<AdminPanel> {
     _cOther = TextEditingController(text: widget.catOther);
     _lMax = TextEditingController(text: widget.lotteryMax.toString());
     _lOffset = TextEditingController(text: widget.lotteryOffset.toString());
+    _lSKU = TextEditingController(text: widget.lotterySKU);
     _stEn = widget.storeEn; _ltEn = widget.lotteryEn; _orEn = widget.ordersEn; _nwEn = widget.newsEn; _suEn = widget.supportEn;
   }
 
@@ -901,13 +908,11 @@ class _AdminPanelState extends State<AdminPanel> {
           } else {
             await _supabase.from('products').update(data).eq('id', product.id);
             setState(() {
-              // Update local state by replacing the product in the correct list
               if (product.category == cat) {
                 if (cat == 'insta') { int idx = _tempInsta.indexWhere((p) => p.id == product.id); if (idx != -1) _tempInsta[idx] = Product.fromJson({...data, 'id': product.id}); }
                 else if (cat == 'tele') { int idx = _tempTele.indexWhere((p) => p.id == product.id); if (idx != -1) _tempTele[idx] = Product.fromJson({...data, 'id': product.id}); }
                 else { int idx = _tempOther.indexWhere((p) => p.id == product.id); if (idx != -1) _tempOther[idx] = Product.fromJson({...data, 'id': product.id}); }
               } else {
-                // Category changed, move it
                 if (product.category == 'insta') _tempInsta.removeWhere((p) => p.id == product.id);
                 else if (product.category == 'tele') _tempTele.removeWhere((p) => p.id == product.id);
                 else _tempOther.removeWhere((p) => p.id == product.id);
@@ -942,6 +947,8 @@ class _AdminPanelState extends State<AdminPanel> {
     _buildField(_title, 'عنوان بنر قرعه‌کشی', 'lottery_banner_title'),
     _buildField(_prize, 'جایزه اصلی', 'lottery_banner_prize'),
     _buildField(_date, 'تاریخ قرعه‌کشی', 'lottery_banner_date'),
+    _buildField(_fee, 'هزینه شرکت (متن)', 'lottery_entry_fee'),
+    _buildField(_lSKU, 'SKU بازار قرعه‌کشی', 'lottery_bazaar_sku'),
     _buildField(_lMax, 'حداکثر ظرفیت', 'lottery_max_capacity'),
     _buildField(_lOffset, 'آمار نمایشی (Manual Offset)', 'lottery_manual_offset'),
     const Divider(),
@@ -1108,7 +1115,7 @@ class _AdminPanelState extends State<AdminPanel> {
   Widget _buildGeneralTab() => ListView(padding: const EdgeInsets.all(16), children: [
     _buildField(_inst, 'آیدی اینستاگرام پیج اصلی', 'insta_id'),
     _buildField(_tel, 'آیدی کانال تلگرام', 'telegram_id'),
-    _buildField(_pay, 'لینک پرداخت مکمل', 'payment_link'),
+    _pay == null ? const SizedBox() : _buildField(_pay, 'لینک پرداخت مکمل', 'payment_link'),
     _buildField(_cInsta, 'نام دسته اینستاگرام', 'cat_insta_name'),
     _buildField(_cTele, 'نام دسته تلگرام', 'cat_tele_name'),
     _buildField(_cOther, 'نام دسته سایر', 'cat_other_name'),
