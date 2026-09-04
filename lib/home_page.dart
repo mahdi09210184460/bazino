@@ -691,6 +691,7 @@ class _HomePageState extends State<HomePage> {
 
   Widget _buildSupTile(IconData i, String t, String v, Color c) => ListTile(
     leading: Icon(i, color: c), title: Text(t), subtitle: Text(v),
+    trailing: const Icon(Icons.copy, size: 18, color: Colors.grey),
     onTap: () async {
       Clipboard.setData(ClipboardData(text: v));
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('کپی شد'), duration: Duration(seconds: 2)));
@@ -698,8 +699,10 @@ class _HomePageState extends State<HomePage> {
       String url = "";
       if (t.contains('تلگرام')) url = "https://t.me/${v.replaceAll('@', '')}";
       else if (t.contains('واتس‌اپ')) url = "https://wa.me/$v";
-      else url = "mailto:$v";
-      if (await canLaunchUrl(Uri.parse(url))) launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
+      
+      if (url.isNotEmpty && await canLaunchUrl(Uri.parse(url))) {
+        launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
+      }
     },
   );
 
@@ -870,7 +873,7 @@ class _AdminPanelState extends State<AdminPanel> {
     child: ListTile(
       leading: const Icon(Icons.shopping_bag, color: Colors.orange),
       title: Text(p.title),
-      subtitle: Text('قیمت: ${p.price} | SKU: ${p.sku}'),
+      subtitle: Text('قیمت: ${formatPrice(p.priceInt)} تومان | SKU: ${p.sku}'),
       trailing: Row(mainAxisSize: MainAxisSize.min, children: [
         IconButton(icon: const Icon(Icons.edit, color: Colors.blue), onPressed: () => _showProductDialog(product: p)),
         IconButton(icon: const Icon(Icons.delete, color: Colors.red), onPressed: () => _deleteProduct(p)),
@@ -880,57 +883,72 @@ class _AdminPanelState extends State<AdminPanel> {
 
   void _showProductDialog({Product? product}) {
     TextEditingController t = TextEditingController(text: product?.title);
-    TextEditingController pr = TextEditingController(text: product?.price);
+    TextEditingController pr = TextEditingController(text: product?.priceInt != 0 ? product?.priceInt.toString() : '');
     TextEditingController q = TextEditingController(text: product?.quality);
     TextEditingController img = TextEditingController(text: product?.imageUrl);
     TextEditingController s = TextEditingController(text: product?.sku);
     String cat = product?.category ?? 'insta';
 
-    showDialog(context: context, builder: (c) => StatefulBuilder(builder: (c, setDialogState) => AlertDialog(
-      title: Text(product == null ? 'افزودن محصول' : 'ویرایش محصول'),
-      content: SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min, children: [
-        TextField(controller: t, decoration: const InputDecoration(labelText: 'نام محصول')),
-        TextField(controller: pr, decoration: const InputDecoration(labelText: 'قیمت (متن)')),
-        TextField(controller: q, decoration: const InputDecoration(labelText: 'کیفیت')),
-        TextField(controller: img, decoration: const InputDecoration(labelText: 'لینک عکس')),
-        TextField(controller: s, decoration: const InputDecoration(labelText: 'SKU بازار')),
-        DropdownButton<String>(value: cat, items: ['insta', 'tele', 'other'].map((e) => DropdownMenuItem(value: e, child: Text(e))).toList(), onChanged: (v) => setDialogState(() => cat = v!)),
-      ])),
-      actions: [
-        TextButton(onPressed: () => Navigator.pop(c), child: const Text('انصراف')),
-        ElevatedButton(onPressed: () async {
-          final data = {'title': t.text, 'price': pr.text, 'quality': q.text, 'image_url': img.text, 'sku': s.text, 'category': cat};
-          if (product == null) {
-            final res = await _supabase.from('products').insert(data).select().single();
-            Product newP = Product.fromJson(res);
-            setState(() {
-              if (cat == 'insta') _tempInsta.add(newP);
-              else if (cat == 'tele') _tempTele.add(newP);
-              else _tempOther.add(newP);
-            });
-          } else {
-            await _supabase.from('products').update(data).eq('id', product.id);
-            setState(() {
-              if (product.category == cat) {
-                if (cat == 'insta') { int idx = _tempInsta.indexWhere((p) => p.id == product.id); if (idx != -1) _tempInsta[idx] = Product.fromJson({...data, 'id': product.id}); }
-                else if (cat == 'tele') { int idx = _tempTele.indexWhere((p) => p.id == product.id); if (idx != -1) _tempTele[idx] = Product.fromJson({...data, 'id': product.id}); }
-                else { int idx = _tempOther.indexWhere((p) => p.id == product.id); if (idx != -1) _tempOther[idx] = Product.fromJson({...data, 'id': product.id}); }
-              } else {
-                if (product.category == 'insta') _tempInsta.removeWhere((p) => p.id == product.id);
-                else if (product.category == 'tele') _tempTele.removeWhere((p) => p.id == product.id);
-                else _tempOther.removeWhere((p) => p.id == product.id);
+    showDialog(context: context, builder: (c) => StatefulBuilder(builder: (c, setDialogState) {
+      String previewPrice = pr.text.isEmpty ? "۰ تومان" : "${formatPrice(pr.text)} تومان";
 
-                Product newP = Product.fromJson({...data, 'id': product.id});
+      return AlertDialog(
+        title: Text(product == null ? 'افزودن محصول' : 'ویرایش محصول'),
+        content: SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min, children: [
+          TextField(controller: t, decoration: const InputDecoration(labelText: 'نام محصول')),
+          TextField(
+            controller: pr,
+            decoration: const InputDecoration(labelText: 'قیمت (فقط عدد)'),
+            keyboardType: TextInputType.number,
+            onChanged: (v) => setDialogState(() {
+              previewPrice = v.isEmpty ? "۰ تومان" : "${formatPrice(v)} تومان";
+            }),
+          ),
+          Padding(
+            padding: const EdgeInsets.only(top: 8, bottom: 12),
+            child: Text("پیش‌نمایش قیمت: $previewPrice", style: const TextStyle(color: Colors.orange, fontWeight: FontWeight.bold, fontSize: 12)),
+          ),
+          TextField(controller: q, decoration: const InputDecoration(labelText: 'کیفیت')),
+          TextField(controller: img, decoration: const InputDecoration(labelText: 'لینک عکس')),
+          TextField(controller: s, decoration: const InputDecoration(labelText: 'SKU بازار')),
+          DropdownButton<String>(value: cat, items: ['insta', 'tele', 'other'].map((e) => DropdownMenuItem(value: e, child: Text(e))).toList(), onChanged: (v) => setDialogState(() => cat = v!)),
+        ])),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(c), child: const Text('انصراف')),
+          ElevatedButton(onPressed: () async {
+            final data = {'title': t.text, 'price': pr.text, 'quality': q.text, 'image_url': img.text, 'sku': s.text, 'category': cat};
+            if (product == null) {
+              final res = await _supabase.from('products').insert(data).select().single();
+              Product newP = Product.fromJson(res);
+              setState(() {
                 if (cat == 'insta') _tempInsta.add(newP);
                 else if (cat == 'tele') _tempTele.add(newP);
                 else _tempOther.add(newP);
-              }
-            });
-          }
-          widget.onUpdate(); Navigator.pop(c);
-        }, child: Text(product == null ? 'افزودن' : 'بروزرسانی')),
-      ],
-    )));
+              });
+            } else {
+              await _supabase.from('products').update(data).eq('id', product.id);
+              setState(() {
+                if (product.category == cat) {
+                  if (cat == 'insta') { int idx = _tempInsta.indexWhere((p) => p.id == product.id); if (idx != -1) _tempInsta[idx] = Product.fromJson({...data, 'id': product.id}); }
+                  else if (cat == 'tele') { int idx = _tempTele.indexWhere((p) => p.id == product.id); if (idx != -1) _tempTele[idx] = Product.fromJson({...data, 'id': product.id}); }
+                  else { int idx = _tempOther.indexWhere((p) => p.id == product.id); if (idx != -1) _tempOther[idx] = Product.fromJson({...data, 'id': product.id}); }
+                } else {
+                  if (product.category == 'insta') _tempInsta.removeWhere((p) => p.id == product.id);
+                  else if (product.category == 'tele') _tempTele.removeWhere((p) => p.id == product.id);
+                  else _tempOther.removeWhere((p) => p.id == product.id);
+
+                  Product newP = Product.fromJson({...data, 'id': product.id});
+                  if (cat == 'insta') _tempInsta.add(newP);
+                  else if (cat == 'tele') _tempTele.add(newP);
+                  else _tempOther.add(newP);
+                }
+              });
+            }
+            widget.onUpdate(); Navigator.pop(c);
+          }, child: Text(product == null ? 'افزودن' : 'بروزرسانی')),
+        ],
+      );
+    }));
   }
 
   void _deleteProduct(Product p) async {
@@ -950,10 +968,10 @@ class _AdminPanelState extends State<AdminPanel> {
     _buildField(_title, 'عنوان بنر قرعه‌کشی', 'lottery_banner_title'),
     _buildField(_prize, 'جایزه اصلی', 'lottery_banner_prize'),
     _buildField(_date, 'تاریخ قرعه‌کشی', 'lottery_banner_date'),
-    _buildField(_fee, 'هزینه شرکت (متن)', 'lottery_entry_fee'),
+    _buildField(_fee, 'هزینه شرکت (فقط عدد)', 'lottery_entry_fee', type: TextInputType.number),
     _buildField(_lSKU, 'SKU بازار قرعه‌کشی', 'lottery_bazaar_sku'),
-    _buildField(_lMax, 'حداکثر ظرفیت', 'lottery_max_capacity'),
-    _buildField(_lOffset, 'آمار نمایشی (Manual Offset)', 'lottery_manual_offset'),
+    _buildField(_lMax, 'حداکثر ظرفیت', 'lottery_max_capacity', type: TextInputType.number),
+    _buildField(_lOffset, 'آمار نمایشی (Manual Offset)', 'lottery_manual_offset', type: TextInputType.number),
     const Divider(),
     const Text('شرکت‌کنندگان فعلی:'),
     ...widget.allParticipants.take(10).map((pa) => ListTile(title: Text(pa.name), subtitle: Text(pa.lotteryCode))),
@@ -969,6 +987,7 @@ class _AdminPanelState extends State<AdminPanel> {
         onChanged: (v) async {
           await _supabase.from('app_users').update({'is_banned': !v}).eq('phone', widget.appUsers[i].phone);
           setState(() { widget.appUsers[i].isBanned = !v; });
+          widget.onUpdate();
         },
       ),
     ),
@@ -1173,23 +1192,25 @@ class _AdminPanelState extends State<AdminPanel> {
   Widget _buildSupportTab() => ListView(padding: const EdgeInsets.all(16), children: [
     _buildField(_sTel, 'آیدی تلگرام پشتیبان', 'sup_tele'),
     _buildField(_sWA, 'شماره واتس‌اپ پشتیبان', 'sup_whatsapp'),
-    _buildField(_mail, 'ایمیل پشتیبانی', 'support_email'),
   ]);
 
   Widget _buildGeneralTab() => ListView(padding: const EdgeInsets.all(16), children: [
     _buildField(_inst, 'آیدی اینستاگرام پیج اصلی', 'insta_id'),
     _buildField(_tel, 'آیدی کانال تلگرام', 'telegram_id'),
-    _pay == null ? const SizedBox() : _buildField(_pay, 'لینک پرداخت مکمل', 'payment_link'),
+    _buildField(_pay, 'لینک پرداخت مکمل', 'payment_link'),
     _buildField(_cInsta, 'نام دسته اینستاگرام', 'cat_insta_name'),
     _buildField(_cTele, 'نام دسته تلگرام', 'cat_tele_name'),
     _buildField(_cOther, 'نام دسته سایر', 'cat_other_name'),
-    _buildField(_rules, 'متن قوانین و مقررات (بسیار مهم)', 'lottery_rules'),
+    _buildField(_rules, 'متن قوانین و مقررات (بسیار مهم)', 'lottery_rules', maxLines: 5),
   ]);
 
-  Widget _buildField(TextEditingController c, String l, String k) => Padding(
+  Widget _buildField(TextEditingController c, String l, String k, {int maxLines = 1, TextInputType type = TextInputType.text}) => Padding(
     padding: const EdgeInsets.only(bottom: 15),
     child: TextField(
-      controller: c, decoration: InputDecoration(labelText: l, border: const OutlineInputBorder()),
+      controller: c,
+      maxLines: maxLines,
+      keyboardType: type,
+      decoration: InputDecoration(labelText: l, border: const OutlineInputBorder()),
       onChanged: (v) => _updateConfig(k, v),
     ),
   );
