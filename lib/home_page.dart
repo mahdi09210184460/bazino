@@ -719,7 +719,7 @@ class _HomePageState extends State<HomePage> {
               Navigator.push(context, MaterialPageRoute(builder: (c) => AdminPanel(
                 instaProducts: _instaProducts, telegramProducts: _telegramProducts, otherProducts: _otherProducts,
                 lotteryWinners: _lotteryWinners, prizes: _prizes, allOrders: _allOrders, appUsers: _appUsers,
-                allParticipants: _allParticipants, bannerTitle: _lotteryBannerTitle, bannerPrize: _lotteryBannerPrize,
+                allParticipants: _allParticipants, allNews: _allNews, bannerTitle: _lotteryBannerTitle, bannerPrize: _lotteryBannerPrize,
                 bannerDate: _lotteryBannerDate, insta: _instaID, tele: _telegramID, mail: _supportEmail,
                 paymentLink: _paymentLink, lotteryFee: _lotteryEntryFee, lotteryRules: _lotteryRules,
                 supTele: _supTele, supWA: _supWhatsApp, catInsta: _catInstaName, catTele: _catTeleName,
@@ -748,12 +748,13 @@ class AdminPanel extends StatefulWidget {
   final List<OrderRecord> allOrders;
   final List<AppUserRecord> appUsers;
   final List<Participant> allParticipants;
+  final List<AppNews> allNews;
   final String bannerTitle, bannerPrize, bannerDate, insta, tele, mail, paymentLink, lotteryFee, lotteryRules, supTele, supWA, catInsta, catTele, catOther, lotterySKU;
   final int lotteryMax, lotteryOffset;
   final bool storeEn, lotteryEn, ordersEn, newsEn, supportEn;
   final VoidCallback onUpdate;
 
-  AdminPanel({Key? key, required this.instaProducts, required this.telegramProducts, required this.otherProducts, required this.lotteryWinners, required this.prizes, required this.allOrders, required this.appUsers, required this.allParticipants, required this.bannerTitle, required this.bannerPrize, required this.bannerDate, required this.insta, required this.tele, required this.mail, required this.paymentLink, required this.lotteryFee, required this.lotteryRules, required this.supTele, required this.supWA, required this.catInsta, required this.catTele, required this.catOther, required this.lotterySKU, required this.lotteryMax, required this.lotteryOffset, required this.storeEn, required this.lotteryEn, required this.ordersEn, required this.newsEn, required this.supportEn, required this.onUpdate}) : super(key: key);
+  AdminPanel({Key? key, required this.instaProducts, required this.telegramProducts, required this.otherProducts, required this.lotteryWinners, required this.prizes, required this.allOrders, required this.appUsers, required this.allParticipants, required this.allNews, required this.bannerTitle, required this.bannerPrize, required this.bannerDate, required this.insta, required this.tele, required this.mail, required this.paymentLink, required this.lotteryFee, required this.lotteryRules, required this.supTele, required this.supWA, required this.catInsta, required this.catTele, required this.catOther, required this.lotterySKU, required this.lotteryMax, required this.lotteryOffset, required this.storeEn, required this.lotteryEn, required this.ordersEn, required this.newsEn, required this.supportEn, required this.onUpdate}) : super(key: key);
 
   @override
   _AdminPanelState createState() => _AdminPanelState();
@@ -764,6 +765,7 @@ class _AdminPanelState extends State<AdminPanel> {
   late List<OrderRecord> _tempOrders;
   late List<Winner> _tempWinners;
   late List<PrizeRecord> _tempPrizes;
+  late List<AppNews> _tempNews;
   late TextEditingController _title, _prize, _date, _inst, _tel, _mail, _pay, _fee, _rules, _sTel, _sWA, _cInsta, _cTele, _cOther, _lMax, _lOffset, _lSKU;
   late bool _stEn, _ltEn, _orEn, _nwEn, _suEn;
   final SupabaseClient _supabase = Supabase.instance.client;
@@ -777,6 +779,7 @@ class _AdminPanelState extends State<AdminPanel> {
     _tempOrders = List.from(widget.allOrders);
     _tempWinners = List.from(widget.lotteryWinners);
     _tempPrizes = List.from(widget.prizes);
+    _tempNews = List.from(widget.allNews);
     _title = TextEditingController(text: widget.bannerTitle);
     _prize = TextEditingController(text: widget.bannerPrize);
     _date = TextEditingController(text: widget.bannerDate);
@@ -807,16 +810,16 @@ class _AdminPanelState extends State<AdminPanel> {
   @override
   Widget build(BuildContext context) {
     return DefaultTabController(
-      length: 9,
+      length: 10,
       child: Scaffold(
         appBar: AppBar(
           title: const Text('پنل مدیریت هوشمند'),
           bottom: const TabBar(isScrollable: true, tabs: [
-            Tab(text: 'دسترسی'), Tab(text: 'سفارشات'), Tab(text: 'محصولات'), Tab(text: 'قرعه‌کشی'), Tab(text: 'کاربران'), Tab(text: 'جوایز'), Tab(text: 'برندگان'), Tab(text: 'پشتیبانی'), Tab(text: 'عمومی')
+            Tab(text: 'دسترسی'), Tab(text: 'سفارشات'), Tab(text: 'محصولات'), Tab(text: 'قرعه‌کشی'), Tab(text: 'کاربران'), Tab(text: 'جوایز'), Tab(text: 'برندگان'), Tab(text: 'اخبار'), Tab(text: 'پشتیبانی'), Tab(text: 'عمومی')
           ]),
         ),
         body: TabBarView(children: [
-          _buildAccessTab(), _buildOrdersTab(), _buildProductsTab(), _buildLotteryTab(), _buildUsersTab(), _buildPrizesTab(), _buildWinnersTab(), _buildSupportTab(), _buildGeneralTab()
+          _buildAccessTab(), _buildOrdersTab(), _buildProductsTab(), _buildLotteryTab(), _buildUsersTab(), _buildPrizesTab(), _buildWinnersTab(), _buildNewsTab(), _buildSupportTab(), _buildGeneralTab()
         ]),
       ),
     );
@@ -1106,6 +1109,67 @@ class _AdminPanelState extends State<AdminPanel> {
     if (confirm == true) { await _supabase.from('winners').delete().eq('id', w.id); setState(() { _tempWinners.removeWhere((win) => win.id == w.id); }); widget.onUpdate(); }
   }
 
+  Widget _buildNewsTab() => Column(
+    children: [
+      Padding(
+        padding: const EdgeInsets.all(8.0),
+        child: ElevatedButton.icon(onPressed: () => _showNewsDialog(), icon: const Icon(Icons.add), label: const Text('افزودن خبر جدید')),
+      ),
+      Expanded(
+        child: ListView.builder(
+          itemCount: _tempNews.length,
+          itemBuilder: (c, i) => Card(
+            child: ListTile(
+              title: Text(_tempNews[i].title),
+              subtitle: Text(_tempNews[i].date),
+              trailing: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  IconButton(icon: const Icon(Icons.edit, color: Colors.blue), onPressed: () => _showNewsDialog(news: _tempNews[i])),
+                  IconButton(icon: const Icon(Icons.delete, color: Colors.red), onPressed: () => _deleteNews(_tempNews[i])),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    ],
+  );
+
+  void _showNewsDialog({AppNews? news}) {
+    TextEditingController t = TextEditingController(text: news?.title);
+    TextEditingController co = TextEditingController(text: news?.content);
+    TextEditingController d = TextEditingController(text: news?.date ?? DateTime.now().toString().split(' ')[0]);
+
+    showDialog(context: context, builder: (ctx) => AlertDialog(
+      title: Text(news == null ? 'افزودن خبر' : 'ویرایش خبر'),
+      content: SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min, children: [
+        TextField(controller: t, decoration: const InputDecoration(labelText: 'عنوان خبر')),
+        TextField(controller: co, decoration: const InputDecoration(labelText: 'متن خبر'), maxLines: 3),
+        TextField(controller: d, decoration: const InputDecoration(labelText: 'تاریخ')),
+      ])),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('انصراف')),
+        ElevatedButton(onPressed: () async {
+          final data = {'title': t.text, 'content': co.text, 'date': d.text};
+          if (news == null) {
+            final res = await _supabase.from('news').insert(data).select().single();
+            setState(() { _tempNews.insert(0, AppNews.fromJson(res)); });
+          } else {
+            await _supabase.from('news').update(data).eq('id', news.id);
+            setState(() { int idx = _tempNews.indexWhere((n) => n.id == news.id); if (idx != -1) _tempNews[idx] = AppNews.fromJson({...data, 'id': news.id}); });
+          }
+          widget.onUpdate(); Navigator.pop(ctx);
+        }, child: Text(news == null ? 'افزودن' : 'بروزرسانی')),
+      ],
+    ));
+  }
+
+  void _deleteNews(AppNews n) async {
+    bool? confirm = await showDialog(context: context, builder: (c) => AlertDialog(title: const Text('حذف خبر'), content: const Text('آیا از حذف این خبر مطمئن هستید؟'), actions: [TextButton(onPressed: () => Navigator.pop(c, false), child: const Text('نه')), TextButton(onPressed: () => Navigator.pop(c, true), child: const Text('بله'))]));
+    if (confirm == true) { await _supabase.from('news').delete().eq('id', n.id); setState(() { _tempNews.removeWhere((item) => item.id == n.id); }); widget.onUpdate(); }
+  }
+
   Widget _buildSupportTab() => ListView(padding: const EdgeInsets.all(16), children: [
     _buildField(_sTel, 'آیدی تلگرام پشتیبان', 'sup_tele'),
     _buildField(_sWA, 'شماره واتس‌اپ پشتیبان', 'sup_whatsapp'),
@@ -1119,6 +1183,7 @@ class _AdminPanelState extends State<AdminPanel> {
     _buildField(_cInsta, 'نام دسته اینستاگرام', 'cat_insta_name'),
     _buildField(_cTele, 'نام دسته تلگرام', 'cat_tele_name'),
     _buildField(_cOther, 'نام دسته سایر', 'cat_other_name'),
+    _buildField(_rules, 'متن قوانین و مقررات (بسیار مهم)', 'lottery_rules'),
   ]);
 
   Widget _buildField(TextEditingController c, String l, String k) => Padding(
