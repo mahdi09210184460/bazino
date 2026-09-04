@@ -142,6 +142,18 @@ String maskPhone(String phone) {
   return "${phone.substring(0, 4)}***${phone.substring(phone.length - 4)}";
 }
 
+IconData getIconFromCode(int code) {
+  if (code == Icons.card_giftcard.codePoint) return Icons.card_giftcard;
+  if (code == Icons.stars.codePoint) return Icons.stars;
+  if (code == Icons.emoji_events.codePoint) return Icons.emoji_events;
+  if (code == Icons.military_tech.codePoint) return Icons.military_tech;
+  if (code == Icons.looks_one.codePoint) return Icons.looks_one;
+  if (code == Icons.looks_two.codePoint) return Icons.looks_two;
+  if (code == Icons.looks_3.codePoint) return Icons.looks_3;
+  if (code == Icons.card_membership.codePoint) return Icons.card_membership;
+  return Icons.stars; // Default
+}
+
 // --- Main Application Pages ---
 
 class HomePage extends StatefulWidget {
@@ -560,7 +572,7 @@ class _HomePageState extends State<HomePage> {
               width: 130, margin: const EdgeInsets.only(left: 15),
               decoration: BoxDecoration(color: Color(_prizes[i].colorValue).withOpacity(0.1), borderRadius: BorderRadius.circular(20), border: Border.all(color: Color(_prizes[i].colorValue).withOpacity(0.3))),
               child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-                Icon(IconData(_prizes[i].iconCode, fontFamily: 'MaterialIcons'), color: Color(_prizes[i].colorValue), size: 40),
+                Icon(getIconFromCode(_prizes[i].iconCode), color: Color(_prizes[i].colorValue), size: 40),
                 const SizedBox(height: 10),
                 Text(_prizes[i].title, style: const TextStyle(fontWeight: FontWeight.bold), textAlign: TextAlign.center),
                 Text(_prizes[i].amount, style: const TextStyle(fontSize: 12)),
@@ -919,7 +931,7 @@ class _AdminPanelState extends State<AdminPanel> {
   Widget _buildPrizesTab() => ListView.builder(
     itemCount: widget.prizes.length,
     itemBuilder: (c, i) => ListTile(
-      leading: Icon(IconData(widget.prizes[i].iconCode, fontFamily: 'MaterialIcons')),
+      leading: Icon(getIconFromCode(widget.prizes[i].iconCode)),
       title: Text(widget.prizes[i].title),
       subtitle: Text(widget.prizes[i].amount),
     ),
