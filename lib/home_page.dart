@@ -615,7 +615,7 @@ class _HomePageState extends State<HomePage> {
           title: Text(myOrders[i].productTitle, style: const TextStyle(fontWeight: FontWeight.bold)),
           subtitle: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             const SizedBox(height: 5),
-            Text('کد رهگیری: ${myOrders[i].trackingCode}'),
+            Text('کد رهگیری: ${myOrders[i].trackingCode}', style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.orange)),
             Text('تاریخ: ${myOrders[i].date}', style: const TextStyle(fontSize: 11)),
           ]),
           trailing: Container(
@@ -756,6 +756,8 @@ class AdminPanel extends StatefulWidget {
 class _AdminPanelState extends State<AdminPanel> {
   late List<Product> _tempInsta, _tempTele, _tempOther;
   late List<OrderRecord> _tempOrders;
+  late List<Winner> _tempWinners;
+  late List<PrizeRecord> _tempPrizes;
   late TextEditingController _title, _prize, _date, _inst, _tel, _mail, _pay, _fee, _rules, _sTel, _sWA, _cInsta, _cTele, _cOther, _lMax, _lOffset;
   late bool _stEn, _ltEn, _orEn, _nwEn, _suEn;
   final SupabaseClient _supabase = Supabase.instance.client;
@@ -767,6 +769,8 @@ class _AdminPanelState extends State<AdminPanel> {
     _tempTele = List.from(widget.telegramProducts);
     _tempOther = List.from(widget.otherProducts);
     _tempOrders = List.from(widget.allOrders);
+    _tempWinners = List.from(widget.lotteryWinners);
+    _tempPrizes = List.from(widget.prizes);
     _title = TextEditingController(text: widget.bannerTitle);
     _prize = TextEditingController(text: widget.bannerPrize);
     _date = TextEditingController(text: widget.bannerDate);
@@ -796,16 +800,16 @@ class _AdminPanelState extends State<AdminPanel> {
   @override
   Widget build(BuildContext context) {
     return DefaultTabController(
-      length: 8,
+      length: 9,
       child: Scaffold(
         appBar: AppBar(
           title: const Text('پنل مدیریت هوشمند'),
           bottom: const TabBar(isScrollable: true, tabs: [
-            Tab(text: 'دسترسی'), Tab(text: 'سفارشات'), Tab(text: 'محصولات'), Tab(text: 'قرعه‌کشی'), Tab(text: 'کاربران'), Tab(text: 'جوایز'), Tab(text: 'پشتیبانی'), Tab(text: 'عمومی')
+            Tab(text: 'دسترسی'), Tab(text: 'سفارشات'), Tab(text: 'محصولات'), Tab(text: 'قرعه‌کشی'), Tab(text: 'کاربران'), Tab(text: 'جوایز'), Tab(text: 'برندگان'), Tab(text: 'پشتیبانی'), Tab(text: 'عمومی')
           ]),
         ),
         body: TabBarView(children: [
-          _buildAccessTab(), _buildOrdersTab(), _buildProductsTab(), _buildLotteryTab(), _buildUsersTab(), _buildPrizesTab(), _buildSupportTab(), _buildGeneralTab()
+          _buildAccessTab(), _buildOrdersTab(), _buildProductsTab(), _buildLotteryTab(), _buildUsersTab(), _buildPrizesTab(), _buildWinnersTab(), _buildSupportTab(), _buildGeneralTab()
         ]),
       ),
     );
@@ -887,9 +891,33 @@ class _AdminPanelState extends State<AdminPanel> {
         ElevatedButton(onPressed: () async {
           final data = {'title': t.text, 'price': pr.text, 'quality': q.text, 'image_url': img.text, 'sku': s.text, 'category': cat};
           if (product == null) {
-            await _supabase.from('products').insert(data);
+            final res = await _supabase.from('products').insert(data).select().single();
+            Product newP = Product.fromJson(res);
+            setState(() {
+              if (cat == 'insta') _tempInsta.add(newP);
+              else if (cat == 'tele') _tempTele.add(newP);
+              else _tempOther.add(newP);
+            });
           } else {
             await _supabase.from('products').update(data).eq('id', product.id);
+            setState(() {
+              // Update local state by replacing the product in the correct list
+              if (product.category == cat) {
+                if (cat == 'insta') { int idx = _tempInsta.indexWhere((p) => p.id == product.id); if (idx != -1) _tempInsta[idx] = Product.fromJson({...data, 'id': product.id}); }
+                else if (cat == 'tele') { int idx = _tempTele.indexWhere((p) => p.id == product.id); if (idx != -1) _tempTele[idx] = Product.fromJson({...data, 'id': product.id}); }
+                else { int idx = _tempOther.indexWhere((p) => p.id == product.id); if (idx != -1) _tempOther[idx] = Product.fromJson({...data, 'id': product.id}); }
+              } else {
+                // Category changed, move it
+                if (product.category == 'insta') _tempInsta.removeWhere((p) => p.id == product.id);
+                else if (product.category == 'tele') _tempTele.removeWhere((p) => p.id == product.id);
+                else _tempOther.removeWhere((p) => p.id == product.id);
+
+                Product newP = Product.fromJson({...data, 'id': product.id});
+                if (cat == 'insta') _tempInsta.add(newP);
+                else if (cat == 'tele') _tempTele.add(newP);
+                else _tempOther.add(newP);
+              }
+            });
           }
           widget.onUpdate(); Navigator.pop(c);
         }, child: Text(product == null ? 'افزودن' : 'بروزرسانی')),
@@ -899,7 +927,15 @@ class _AdminPanelState extends State<AdminPanel> {
 
   void _deleteProduct(Product p) async {
     bool? confirm = await showDialog(context: context, builder: (c) => AlertDialog(title: const Text('حذف محصول'), content: const Text('آیا از حذف این محصول مطمئن هستید؟'), actions: [TextButton(onPressed: () => Navigator.pop(c, false), child: const Text('نه')), TextButton(onPressed: () => Navigator.pop(c, true), child: const Text('بله'))]));
-    if (confirm == true) { await _supabase.from('products').delete().eq('id', p.id); widget.onUpdate(); }
+    if (confirm == true) {
+      await _supabase.from('products').delete().eq('id', p.id);
+      setState(() {
+        if (p.category == 'insta') _tempInsta.removeWhere((prod) => prod.id == p.id);
+        else if (p.category == 'tele') _tempTele.removeWhere((prod) => prod.id == p.id);
+        else _tempOther.removeWhere((prod) => prod.id == p.id);
+      });
+      widget.onUpdate();
+    }
   }
 
   Widget _buildLotteryTab() => ListView(padding: const EdgeInsets.all(16), children: [
@@ -928,14 +964,140 @@ class _AdminPanelState extends State<AdminPanel> {
     ),
   );
 
-  Widget _buildPrizesTab() => ListView.builder(
-    itemCount: widget.prizes.length,
-    itemBuilder: (c, i) => ListTile(
-      leading: Icon(getIconFromCode(widget.prizes[i].iconCode)),
-      title: Text(widget.prizes[i].title),
-      subtitle: Text(widget.prizes[i].amount),
-    ),
+  Widget _buildPrizesTab() => Column(
+    children: [
+      Padding(
+        padding: const EdgeInsets.all(8.0),
+        child: ElevatedButton.icon(onPressed: () => _showPrizeDialog(), icon: const Icon(Icons.add), label: const Text('افزودن جایزه')),
+      ),
+      Expanded(
+        child: ListView.builder(
+          itemCount: _tempPrizes.length,
+          itemBuilder: (c, i) => Card(
+            child: ListTile(
+              leading: Icon(getIconFromCode(_tempPrizes[i].iconCode), color: Color(_tempPrizes[i].colorValue)),
+              title: Text(_tempPrizes[i].title),
+              subtitle: Text(_tempPrizes[i].amount),
+              trailing: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  IconButton(icon: const Icon(Icons.edit, color: Colors.blue), onPressed: () => _showPrizeDialog(prize: _tempPrizes[i])),
+                  IconButton(icon: const Icon(Icons.delete, color: Colors.red), onPressed: () => _deletePrize(_tempPrizes[i])),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    ],
   );
+
+  void _showPrizeDialog({PrizeRecord? prize}) {
+    TextEditingController t = TextEditingController(text: prize?.title);
+    TextEditingController am = TextEditingController(text: prize?.amount);
+    int icon = prize?.iconCode ?? Icons.card_giftcard.codePoint;
+    int color = prize?.colorValue ?? Colors.orange.value;
+
+    showDialog(context: context, builder: (c) => StatefulBuilder(builder: (c, setDialogState) => AlertDialog(
+      title: Text(prize == null ? 'افزودن جایزه' : 'ویرایش جایزه'),
+      content: SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min, children: [
+        TextField(controller: t, decoration: const InputDecoration(labelText: 'عنوان جایزه')),
+        TextField(controller: am, decoration: const InputDecoration(labelText: 'مقدار/توضیح')),
+        const SizedBox(height: 10),
+        const Text('انتخاب آیکون:'),
+        Wrap(children: [Icons.card_giftcard, Icons.stars, Icons.emoji_events, Icons.military_tech, Icons.looks_one, Icons.looks_two, Icons.looks_3, Icons.card_membership].map((ic) => IconButton(icon: Icon(ic, color: icon == ic.codePoint ? Colors.orange : Colors.grey), onPressed: () => setDialogState(() => icon = ic.codePoint))).toList()),
+        const SizedBox(height: 10),
+        const Text('انتخاب رنگ:'),
+        Wrap(children: [Colors.orange, Colors.blue, Colors.red, Colors.green, Colors.purple, Colors.amber].map((cl) => IconButton(icon: Icon(Icons.circle, color: cl), onPressed: () => setDialogState(() => color = cl.value))).toList()),
+      ])),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(c), child: const Text('انصراف')),
+        ElevatedButton(onPressed: () async {
+          final data = {'title': t.text, 'amount': am.text, 'icon_code': icon, 'color_value': color};
+          if (prize == null) {
+            final res = await _supabase.from('prizes').insert(data).select().single();
+            setState(() { _tempPrizes.add(PrizeRecord.fromJson(res)); });
+          } else {
+            await _supabase.from('prizes').update(data).eq('id', prize.id);
+            setState(() { int idx = _tempPrizes.indexWhere((pr) => pr.id == prize.id); if (idx != -1) _tempPrizes[idx] = PrizeRecord.fromJson({...data, 'id': prize.id}); });
+          }
+          widget.onUpdate(); Navigator.pop(c);
+        }, child: Text(prize == null ? 'افزودن' : 'بروزرسانی')),
+      ],
+    )));
+  }
+
+  void _deletePrize(PrizeRecord pr) async {
+    bool? confirm = await showDialog(context: context, builder: (c) => AlertDialog(title: const Text('حذف جایزه'), content: const Text('آیا از حذف این جایزه مطمئن هستید؟'), actions: [TextButton(onPressed: () => Navigator.pop(c, false), child: const Text('نه')), TextButton(onPressed: () => Navigator.pop(c, true), child: const Text('بله'))]));
+    if (confirm == true) { await _supabase.from('prizes').delete().eq('id', pr.id); setState(() { _tempPrizes.removeWhere((p) => p.id == pr.id); }); widget.onUpdate(); }
+  }
+
+  Widget _buildWinnersTab() => Column(
+    children: [
+      Padding(
+        padding: const EdgeInsets.all(8.0),
+        child: ElevatedButton.icon(onPressed: () => _showWinnerDialog(), icon: const Icon(Icons.add), label: const Text('افزودن برنده جدید')),
+      ),
+      Expanded(
+        child: ListView.builder(
+          itemCount: _tempWinners.length,
+          itemBuilder: (c, i) => Card(
+            child: ListTile(
+              title: Text(_tempWinners[i].name),
+              subtitle: Text('${_tempWinners[i].prize} | ${_tempWinners[i].city}'),
+              trailing: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  IconButton(icon: const Icon(Icons.edit, color: Colors.blue), onPressed: () => _showWinnerDialog(winner: _tempWinners[i])),
+                  IconButton(icon: const Icon(Icons.delete, color: Colors.red), onPressed: () => _deleteWinner(_tempWinners[i])),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    ],
+  );
+
+  void _showWinnerDialog({Winner? winner}) {
+    TextEditingController n = TextEditingController(text: winner?.name);
+    TextEditingController c = TextEditingController(text: winner?.city);
+    TextEditingController p = TextEditingController(text: winner?.prize);
+    TextEditingController d = TextEditingController(text: winner?.date);
+    TextEditingController lc = TextEditingController(text: winner?.lotteryCode);
+    TextEditingController ph = TextEditingController(text: winner?.phone);
+
+    showDialog(context: context, builder: (ctx) => AlertDialog(
+      title: Text(winner == null ? 'افزودن برنده' : 'ویرایش برنده'),
+      content: SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min, children: [
+        TextField(controller: n, decoration: const InputDecoration(labelText: 'نام برنده')),
+        TextField(controller: c, decoration: const InputDecoration(labelText: 'شهر')),
+        TextField(controller: p, decoration: const InputDecoration(labelText: 'جایزه')),
+        TextField(controller: d, decoration: const InputDecoration(labelText: 'تاریخ')),
+        TextField(controller: lc, decoration: const InputDecoration(labelText: 'کد قرعه‌کشی')),
+        TextField(controller: ph, decoration: const InputDecoration(labelText: 'تلفن (برای ماسک)')),
+      ])),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('انصراف')),
+        ElevatedButton(onPressed: () async {
+          final data = {'name': n.text, 'city': c.text, 'prize': p.text, 'date': d.text, 'lottery_code': lc.text, 'phone': ph.text};
+          if (winner == null) {
+            final res = await _supabase.from('winners').insert(data).select().single();
+            setState(() { _tempWinners.insert(0, Winner.fromJson(res)); });
+          } else {
+            await _supabase.from('winners').update(data).eq('id', winner.id);
+            setState(() { int idx = _tempWinners.indexWhere((w) => w.id == winner.id); if (idx != -1) _tempWinners[idx] = Winner.fromJson({...data, 'id': winner.id}); });
+          }
+          widget.onUpdate(); Navigator.pop(ctx);
+        }, child: Text(winner == null ? 'افزودن' : 'بروزرسانی')),
+      ],
+    ));
+  }
+
+  void _deleteWinner(Winner w) async {
+    bool? confirm = await showDialog(context: context, builder: (c) => AlertDialog(title: const Text('حذف برنده'), content: const Text('آیا از حذف این برنده مطمئن هستید؟'), actions: [TextButton(onPressed: () => Navigator.pop(c, false), child: const Text('نه')), TextButton(onPressed: () => Navigator.pop(c, true), child: const Text('بله'))]));
+    if (confirm == true) { await _supabase.from('winners').delete().eq('id', w.id); setState(() { _tempWinners.removeWhere((win) => win.id == w.id); }); widget.onUpdate(); }
+  }
 
   Widget _buildSupportTab() => ListView(padding: const EdgeInsets.all(16), children: [
     _buildField(_sTel, 'آیدی تلگرام پشتیبان', 'sup_tele'),
