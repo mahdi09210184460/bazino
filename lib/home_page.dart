@@ -184,6 +184,7 @@ class _HomePageState extends State<HomePage> {
   List<AppUserRecord> _appUsers = [];
   List<AppNews> _allNews = [];
   List<Participant> _allParticipants = [];
+  Set<String> _seenNewsIds = {};
 
   String _lotteryBannerTitle = 'قرعه‌کشی بزرگ هفتگی', _lotteryBannerPrize = 'جایزه ۵ میلیونی', _lotteryBannerDate = 'جمعه ساعت ۲۱';
   int _lotteryMaxCapacity = 500, _lotteryManualOffset = 0;
@@ -198,12 +199,26 @@ class _HomePageState extends State<HomePage> {
   @override
   void initState() {
     super.initState();
+    _loadSeenNews();
     _fetchSupabaseData();
     _startSecurityMonitor();
     final Stream<List<PurchaseDetails>> purchaseUpdated = _iap.purchaseStream;
     _subscription = purchaseUpdated.listen((purchaseDetailsList) {
       _listenToPurchaseUpdated(purchaseDetailsList);
     }, onDone: () => _subscription.cancel(), onError: (error) => debugPrint('IAP Error: $error'));
+  }
+
+  Future<void> _loadSeenNews() async {
+    final prefs = await SharedPreferences.getInstance();
+    final seen = prefs.getStringList('seen_news_ids') ?? [];
+    if (mounted) setState(() => _seenNewsIds = seen.toSet());
+  }
+
+  Future<void> _markNewsAsSeen(String id) async {
+    if (_seenNewsIds.contains(id)) return;
+    final prefs = await SharedPreferences.getInstance();
+    if (mounted) setState(() => _seenNewsIds.add(id));
+    await prefs.setStringList('seen_news_ids', _seenNewsIds.toList());
   }
 
   @override
@@ -367,22 +382,41 @@ class _HomePageState extends State<HomePage> {
     height: 50, margin: const EdgeInsets.only(top: 10),
     child: ListView.builder(
       scrollDirection: Axis.horizontal, itemCount: _allNews.length,
-      itemBuilder: (c, i) => InkWell(
-        onTap: () => _showNewsDetail(_allNews[i]),
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 15), margin: const EdgeInsets.only(right: 10, left: 10),
-          decoration: BoxDecoration(color: Colors.orange.withOpacity(0.1), borderRadius: BorderRadius.circular(25), border: Border.all(color: Colors.orange.withOpacity(0.3))),
-          child: Row(children: [const Icon(Icons.campaign, color: Colors.orange, size: 20), const SizedBox(width: 8), Text(_allNews[i].title, style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.orange))]),
-        ),
-      ),
+      itemBuilder: (c, i) {
+        final n = _allNews[i];
+        final isSeen = _seenNewsIds.contains(n.id.toString());
+        return InkWell(
+          onTap: () => _showNewsDetail(n),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 15), margin: const EdgeInsets.only(right: 10, left: 10),
+            decoration: BoxDecoration(color: Colors.orange.withOpacity(0.1), borderRadius: BorderRadius.circular(25), border: Border.all(color: Colors.orange.withOpacity(0.3))),
+            child: Row(children: [
+              const Icon(Icons.campaign, color: Colors.orange, size: 20),
+              const SizedBox(width: 8),
+              Text(n.title, style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.orange)),
+              if (!isSeen) ...[
+                const SizedBox(width: 6),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  decoration: BoxDecoration(color: Colors.red, borderRadius: BorderRadius.circular(10)),
+                  child: const Text('جدید', style: TextStyle(color: Colors.white, fontSize: 8, fontWeight: FontWeight.bold)),
+                ),
+              ]
+            ]),
+          ),
+        );
+      },
     ),
   );
 
-  void _showNewsDetail(AppNews n) => showDialog(context: context, builder: (c) => AlertDialog(
-    title: Text(n.title),
-    content: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [Text(n.date, style: const TextStyle(fontSize: 10, color: Colors.grey)), const SizedBox(height: 10), Text(n.content)]),
-    actions: [TextButton(onPressed: () => Navigator.pop(c), child: const Text('فهمیدم'))],
-  ));
+  void _showNewsDetail(AppNews n) {
+    _markNewsAsSeen(n.id.toString());
+    showDialog(context: context, builder: (c) => AlertDialog(
+      title: Text(n.title),
+      content: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [Text(n.date, style: const TextStyle(fontSize: 10, color: Colors.grey)), const SizedBox(height: 10), Text(n.content)]),
+      actions: [TextButton(onPressed: () => Navigator.pop(c), child: const Text('فهمیدم'))],
+    ));
+  }
 
   Widget _buildCategorySection(String t, List<Product> p, Color color) => Column(
     crossAxisAlignment: CrossAxisAlignment.start,
@@ -769,6 +803,7 @@ class _AdminPanelState extends State<AdminPanel> {
   late List<Winner> _tempWinners;
   late List<PrizeRecord> _tempPrizes;
   late List<AppNews> _tempNews;
+  late List<Participant> _tempParticipants;
   late TextEditingController _title, _prize, _date, _inst, _tel, _mail, _pay, _fee, _rules, _sTel, _sWA, _cInsta, _cTele, _cOther, _lMax, _lOffset, _lSKU;
   late bool _stEn, _ltEn, _orEn, _nwEn, _suEn;
   final SupabaseClient _supabase = Supabase.instance.client;
@@ -784,6 +819,7 @@ class _AdminPanelState extends State<AdminPanel> {
     _tempWinners = List.from(widget.lotteryWinners);
     _tempPrizes = List.from(widget.prizes);
     _tempNews = List.from(widget.allNews);
+    _tempParticipants = List.from(widget.allParticipants);
     _title = TextEditingController(text: widget.bannerTitle);
     _prize = TextEditingController(text: widget.bannerPrize);
     _date = TextEditingController(text: widget.bannerDate);
@@ -1024,9 +1060,63 @@ class _AdminPanelState extends State<AdminPanel> {
     _buildField(_lMax, 'حداکثر ظرفیت', 'lottery_max_capacity', type: TextInputType.number),
     _buildField(_lOffset, 'آمار نمایشی (Manual Offset)', 'lottery_manual_offset', type: TextInputType.number),
     const Divider(),
-    const Text('شرکت‌کنندگان فعلی:'),
-    ...widget.allParticipants.take(10).map((pa) => ListTile(title: Text(pa.name), subtitle: Text(pa.lotteryCode))),
+    Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Text('شرکت‌کنندگان فعلی: ${_tempParticipants.length} نفر', style: const TextStyle(fontWeight: FontWeight.bold)),
+        ElevatedButton(
+          onPressed: _isSaving ? null : _clearAllParticipants,
+          style: ElevatedButton.styleFrom(backgroundColor: Colors.red[50], foregroundColor: Colors.red),
+          child: const Text('حذف تمامی شرکت‌کنندگان'),
+        ),
+      ],
+    ),
+    const SizedBox(height: 10),
+    ..._tempParticipants.map((pa) => Card(
+      child: ListTile(
+        title: Text(pa.name),
+        subtitle: Text('کد: ${pa.lotteryCode} | ${pa.phone}'),
+        trailing: IconButton(
+          icon: const Icon(Icons.delete, color: Colors.red),
+          onPressed: _isSaving ? null : () => _deleteParticipant(pa),
+        ),
+      ),
+    )),
   ]);
+
+  void _deleteParticipant(Participant p) async {
+    bool? confirm = await showDialog(context: context, builder: (c) => AlertDialog(title: const Text('حذف شرکت‌کننده'), content: const Text('آیا از حذف این شرکت‌کننده مطمئن هستید؟'), actions: [TextButton(onPressed: () => Navigator.pop(c, false), child: const Text('نه')), TextButton(onPressed: () => Navigator.pop(c, true), child: const Text('بله'))]));
+    if (confirm == true) {
+      setState(() => _isSaving = true);
+      try {
+        await _supabase.from('participants').delete().eq('id', p.id);
+        setState(() { _tempParticipants.removeWhere((item) => item.id == p.id); });
+        _showMessage('شرکت‌کننده حذف شد');
+        widget.onUpdate();
+      } catch (e) {
+        _showMessage('خطا در حذف: $e', isError: true);
+      } finally {
+        setState(() => _isSaving = false);
+      }
+    }
+  }
+
+  void _clearAllParticipants() async {
+    bool? confirm = await showDialog(context: context, builder: (c) => AlertDialog(title: const Text('حذف همه'), content: const Text('آیا از حذف تمامی شرکت‌کنندگان مطمئن هستید؟ این عمل غیرقابل بازگشت است.'), actions: [TextButton(onPressed: () => Navigator.pop(c, false), child: const Text('انصراف')), TextButton(onPressed: () => Navigator.pop(c, true), child: const Text('حذف همه'))]));
+    if (confirm == true) {
+      setState(() => _isSaving = true);
+      try {
+        await _supabase.from('participants').delete().neq('id', -1);
+        setState(() { _tempParticipants.clear(); });
+        _showMessage('تمامی شرکت‌کنندگان حذف شدند');
+        widget.onUpdate();
+      } catch (e) {
+        _showMessage('خطا در پاکسازی: $e', isError: true);
+      } finally {
+        setState(() => _isSaving = false);
+      }
+    }
+  }
 
   Widget _buildUsersTab() => ListView.builder(
     itemCount: widget.appUsers.length,
