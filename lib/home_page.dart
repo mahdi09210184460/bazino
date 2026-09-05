@@ -772,6 +772,7 @@ class _AdminPanelState extends State<AdminPanel> {
   late TextEditingController _title, _prize, _date, _inst, _tel, _mail, _pay, _fee, _rules, _sTel, _sWA, _cInsta, _cTele, _cOther, _lMax, _lOffset, _lSKU;
   late bool _stEn, _ltEn, _orEn, _nwEn, _suEn;
   final SupabaseClient _supabase = Supabase.instance.client;
+  bool _isSaving = false;
 
   @override
   void initState() {
@@ -803,11 +804,25 @@ class _AdminPanelState extends State<AdminPanel> {
     _stEn = widget.storeEn; _ltEn = widget.lotteryEn; _orEn = widget.ordersEn; _nwEn = widget.newsEn; _suEn = widget.supportEn;
   }
 
+  void _showMessage(String msg, {bool isError = false}) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      content: Text(msg, textAlign: TextAlign.right, style: const TextStyle(fontWeight: FontWeight.bold)),
+      backgroundColor: isError ? Colors.red : Colors.green,
+      behavior: SnackBarBehavior.floating,
+      margin: const EdgeInsets.all(10),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+    ));
+  }
+
   Future<void> _updateConfig(String k, String v) async {
     try {
       await _supabase.from('app_config').upsert({'key': k, 'value': v}, onConflict: 'key');
       widget.onUpdate();
-    } catch (e) { debugPrint('Error: $e'); }
+    } catch (e) { 
+      debugPrint('Error: $e');
+      _showMessage('خطا در بروزرسانی تنظیمات: $e', isError: true);
+    }
   }
 
   @override
@@ -821,9 +836,14 @@ class _AdminPanelState extends State<AdminPanel> {
             Tab(text: 'دسترسی'), Tab(text: 'سفارشات'), Tab(text: 'محصولات'), Tab(text: 'قرعه‌کشی'), Tab(text: 'کاربران'), Tab(text: 'جوایز'), Tab(text: 'برندگان'), Tab(text: 'اخبار'), Tab(text: 'پشتیبانی'), Tab(text: 'عمومی')
           ]),
         ),
-        body: TabBarView(children: [
-          _buildAccessTab(), _buildOrdersTab(), _buildProductsTab(), _buildLotteryTab(), _buildUsersTab(), _buildPrizesTab(), _buildWinnersTab(), _buildNewsTab(), _buildSupportTab(), _buildGeneralTab()
-        ]),
+        body: Stack(
+          children: [
+            TabBarView(children: [
+              _buildAccessTab(), _buildOrdersTab(), _buildProductsTab(), _buildLotteryTab(), _buildUsersTab(), _buildPrizesTab(), _buildWinnersTab(), _buildNewsTab(), _buildSupportTab(), _buildGeneralTab()
+            ]),
+            if (_isSaving) Container(color: Colors.black26, child: const Center(child: CircularProgressIndicator(color: Colors.orange))),
+          ],
+        ),
       ),
     );
   }
@@ -847,10 +867,18 @@ class _AdminPanelState extends State<AdminPanel> {
         trailing: DropdownButton<String>(
           value: _tempOrders[i].status,
           onChanged: (v) async {
-            if (v == null) return;
-            await _supabase.from('orders').update({'status': v}).eq('id', _tempOrders[i].id);
-            setState(() { _tempOrders[i].status = v; });
-            widget.onUpdate();
+            if (v == null || _isSaving) return;
+            setState(() => _isSaving = true);
+            try {
+              await _supabase.from('orders').update({'status': v}).eq('id', _tempOrders[i].id);
+              setState(() { _tempOrders[i].status = v; });
+              _showMessage('وضعیت سفارش بروز شد');
+              widget.onUpdate();
+            } catch (e) {
+              _showMessage('خطا در تغییر وضعیت: $e', isError: true);
+            } finally {
+              setState(() => _isSaving = false);
+            }
           },
           items: ['در انتظار', 'در حال انجام', 'تکمیل شده', 'لغو شده'].map((s) => DropdownMenuItem(value: s, child: Text(s))).toList(),
         ),
@@ -861,7 +889,7 @@ class _AdminPanelState extends State<AdminPanel> {
   Widget _buildProductsTab() => SingleChildScrollView(
     padding: const EdgeInsets.all(16),
     child: Column(children: [
-      ElevatedButton.icon(onPressed: () => _showProductDialog(), icon: const Icon(Icons.add), label: const Text('افزودن محصول جدید')),
+      ElevatedButton.icon(onPressed: _isSaving ? null : () => _showProductDialog(), icon: const Icon(Icons.add), label: const Text('افزودن محصول جدید')),
       const Divider(height: 30),
       ..._tempInsta.map((p) => _buildAdminProdCard(p)),
       ..._tempTele.map((p) => _buildAdminProdCard(p)),
@@ -875,8 +903,8 @@ class _AdminPanelState extends State<AdminPanel> {
       title: Text(p.title),
       subtitle: Text('قیمت: ${formatPrice(p.priceInt)} تومان | SKU: ${p.sku}'),
       trailing: Row(mainAxisSize: MainAxisSize.min, children: [
-        IconButton(icon: const Icon(Icons.edit, color: Colors.blue), onPressed: () => _showProductDialog(product: p)),
-        IconButton(icon: const Icon(Icons.delete, color: Colors.red), onPressed: () => _deleteProduct(p)),
+        IconButton(icon: const Icon(Icons.edit, color: Colors.blue), onPressed: _isSaving ? null : () => _showProductDialog(product: p)),
+        IconButton(icon: const Icon(Icons.delete, color: Colors.red), onPressed: _isSaving ? null : () => _deleteProduct(p)),
       ]),
     ),
   );
@@ -915,36 +943,51 @@ class _AdminPanelState extends State<AdminPanel> {
         ])),
         actions: [
           TextButton(onPressed: () => Navigator.pop(c), child: const Text('انصراف')),
-          ElevatedButton(onPressed: () async {
-            final data = {'title': t.text, 'price': pr.text, 'quality': q.text, 'image_url': img.text, 'sku': s.text, 'category': cat};
-            if (product == null) {
-              final res = await _supabase.from('products').insert(data).select().single();
-              Product newP = Product.fromJson(res);
-              setState(() {
-                if (cat == 'insta') _tempInsta.add(newP);
-                else if (cat == 'tele') _tempTele.add(newP);
-                else _tempOther.add(newP);
-              });
-            } else {
-              await _supabase.from('products').update(data).eq('id', product.id);
-              setState(() {
-                if (product.category == cat) {
-                  if (cat == 'insta') { int idx = _tempInsta.indexWhere((p) => p.id == product.id); if (idx != -1) _tempInsta[idx] = Product.fromJson({...data, 'id': product.id}); }
-                  else if (cat == 'tele') { int idx = _tempTele.indexWhere((p) => p.id == product.id); if (idx != -1) _tempTele[idx] = Product.fromJson({...data, 'id': product.id}); }
-                  else { int idx = _tempOther.indexWhere((p) => p.id == product.id); if (idx != -1) _tempOther[idx] = Product.fromJson({...data, 'id': product.id}); }
-                } else {
-                  if (product.category == 'insta') _tempInsta.removeWhere((p) => p.id == product.id);
-                  else if (product.category == 'tele') _tempTele.removeWhere((p) => p.id == product.id);
-                  else _tempOther.removeWhere((p) => p.id == product.id);
-
-                  Product newP = Product.fromJson({...data, 'id': product.id});
-                  if (cat == 'insta') _tempInsta.add(newP);
-                  else if (cat == 'tele') _tempTele.add(newP);
-                  else _tempOther.add(newP);
-                }
-              });
+          ElevatedButton(onPressed: _isSaving ? null : () async {
+            if (t.text.isEmpty || pr.text.isEmpty) {
+              _showMessage('نام و قیمت الزامی است', isError: true);
+              return;
             }
-            widget.onUpdate(); Navigator.pop(c);
+            Navigator.pop(c);
+            setState(() => _isSaving = true);
+            try {
+              final data = {'title': t.text, 'price': pr.text, 'quality': q.text, 'image_url': img.text, 'sku': s.text, 'category': cat};
+              if (product == null) {
+                final res = await _supabase.from('products').insert(data).select();
+                if (res.isNotEmpty) {
+                  Product newP = Product.fromJson(res.first);
+                  setState(() {
+                    if (cat == 'insta') _tempInsta.add(newP);
+                    else if (cat == 'tele') _tempTele.add(newP);
+                    else _tempOther.add(newP);
+                  });
+                }
+              } else {
+                await _supabase.from('products').update(data).eq('id', product.id);
+                setState(() {
+                  if (product.category == cat) {
+                    if (cat == 'insta') { int idx = _tempInsta.indexWhere((p) => p.id == product.id); if (idx != -1) _tempInsta[idx] = Product.fromJson({...data, 'id': product.id}); }
+                    else if (cat == 'tele') { int idx = _tempTele.indexWhere((p) => p.id == product.id); if (idx != -1) _tempTele[idx] = Product.fromJson({...data, 'id': product.id}); }
+                    else { int idx = _tempOther.indexWhere((p) => p.id == product.id); if (idx != -1) _tempOther[idx] = Product.fromJson({...data, 'id': product.id}); }
+                  } else {
+                    if (product.category == 'insta') _tempInsta.removeWhere((p) => p.id == product.id);
+                    else if (product.category == 'tele') _tempTele.removeWhere((p) => p.id == product.id);
+                    else _tempOther.removeWhere((p) => p.id == product.id);
+
+                    Product newP = Product.fromJson({...data, 'id': product.id});
+                    if (cat == 'insta') _tempInsta.add(newP);
+                    else if (cat == 'tele') _tempTele.add(newP);
+                    else _tempOther.add(newP);
+                  }
+                });
+              }
+              _showMessage('عملیات با موفقیت انجام شد');
+              widget.onUpdate();
+            } catch (e) {
+              _showMessage('خطا در ذخیره‌سازی: $e', isError: true);
+            } finally {
+              setState(() => _isSaving = false);
+            }
           }, child: Text(product == null ? 'افزودن' : 'بروزرسانی')),
         ],
       );
@@ -954,13 +997,21 @@ class _AdminPanelState extends State<AdminPanel> {
   void _deleteProduct(Product p) async {
     bool? confirm = await showDialog(context: context, builder: (c) => AlertDialog(title: const Text('حذف محصول'), content: const Text('آیا از حذف این محصول مطمئن هستید؟'), actions: [TextButton(onPressed: () => Navigator.pop(c, false), child: const Text('نه')), TextButton(onPressed: () => Navigator.pop(c, true), child: const Text('بله'))]));
     if (confirm == true) {
-      await _supabase.from('products').delete().eq('id', p.id);
-      setState(() {
-        if (p.category == 'insta') _tempInsta.removeWhere((prod) => prod.id == p.id);
-        else if (p.category == 'tele') _tempTele.removeWhere((prod) => prod.id == p.id);
-        else _tempOther.removeWhere((prod) => prod.id == p.id);
-      });
-      widget.onUpdate();
+      setState(() => _isSaving = true);
+      try {
+        await _supabase.from('products').delete().eq('id', p.id);
+        setState(() {
+          if (p.category == 'insta') _tempInsta.removeWhere((prod) => prod.id == p.id);
+          else if (p.category == 'tele') _tempTele.removeWhere((prod) => prod.id == p.id);
+          else _tempOther.removeWhere((prod) => prod.id == p.id);
+        });
+        _showMessage('محصول حذف شد');
+        widget.onUpdate();
+      } catch (e) {
+        _showMessage('خطا در حذف: $e', isError: true);
+      } finally {
+        setState(() => _isSaving = false);
+      }
     }
   }
 
@@ -984,10 +1035,18 @@ class _AdminPanelState extends State<AdminPanel> {
       subtitle: Text(widget.appUsers[i].phone),
       trailing: Switch(
         value: !widget.appUsers[i].isBanned,
-        onChanged: (v) async {
-          await _supabase.from('app_users').update({'is_banned': !v}).eq('phone', widget.appUsers[i].phone);
-          setState(() { widget.appUsers[i].isBanned = !v; });
-          widget.onUpdate();
+        onChanged: _isSaving ? null : (v) async {
+          setState(() => _isSaving = true);
+          try {
+            await _supabase.from('app_users').update({'is_banned': !v}).eq('phone', widget.appUsers[i].phone);
+            setState(() { widget.appUsers[i].isBanned = !v; });
+            _showMessage(v ? 'کاربر آزاد شد' : 'کاربر مسدود شد');
+            widget.onUpdate();
+          } catch (e) {
+            _showMessage('خطا در تغییر وضعیت کاربر: $e', isError: true);
+          } finally {
+            setState(() => _isSaving = false);
+          }
         },
       ),
     ),
@@ -997,7 +1056,7 @@ class _AdminPanelState extends State<AdminPanel> {
     children: [
       Padding(
         padding: const EdgeInsets.all(8.0),
-        child: ElevatedButton.icon(onPressed: () => _showPrizeDialog(), icon: const Icon(Icons.add), label: const Text('افزودن جایزه')),
+        child: ElevatedButton.icon(onPressed: _isSaving ? null : () => _showPrizeDialog(), icon: const Icon(Icons.add), label: const Text('افزودن جایزه')),
       ),
       Expanded(
         child: ListView.builder(
@@ -1010,8 +1069,8 @@ class _AdminPanelState extends State<AdminPanel> {
               trailing: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  IconButton(icon: const Icon(Icons.edit, color: Colors.blue), onPressed: () => _showPrizeDialog(prize: _tempPrizes[i])),
-                  IconButton(icon: const Icon(Icons.delete, color: Colors.red), onPressed: () => _deletePrize(_tempPrizes[i])),
+                  IconButton(icon: const Icon(Icons.edit, color: Colors.blue), onPressed: _isSaving ? null : () => _showPrizeDialog(prize: _tempPrizes[i])),
+                  IconButton(icon: const Icon(Icons.delete, color: Colors.red), onPressed: _isSaving ? null : () => _deletePrize(_tempPrizes[i])),
                 ],
               ),
             ),
@@ -1041,16 +1100,28 @@ class _AdminPanelState extends State<AdminPanel> {
       ])),
       actions: [
         TextButton(onPressed: () => Navigator.pop(c), child: const Text('انصراف')),
-        ElevatedButton(onPressed: () async {
-          final data = {'title': t.text, 'amount': am.text, 'icon_code': icon, 'color_value': color};
-          if (prize == null) {
-            final res = await _supabase.from('prizes').insert(data).select().single();
-            setState(() { _tempPrizes.add(PrizeRecord.fromJson(res)); });
-          } else {
-            await _supabase.from('prizes').update(data).eq('id', prize.id);
-            setState(() { int idx = _tempPrizes.indexWhere((pr) => pr.id == prize.id); if (idx != -1) _tempPrizes[idx] = PrizeRecord.fromJson({...data, 'id': prize.id}); });
+        ElevatedButton(onPressed: _isSaving ? null : () async {
+          if (t.text.isEmpty) { _showMessage('عنوان جایزه الزامی است', isError: true); return; }
+          Navigator.pop(c);
+          setState(() => _isSaving = true);
+          try {
+            final data = {'title': t.text, 'amount': am.text, 'icon_code': icon, 'color_value': color};
+            if (prize == null) {
+              final res = await _supabase.from('prizes').insert(data).select();
+              if (res.isNotEmpty) {
+                setState(() { _tempPrizes.add(PrizeRecord.fromJson(res.first)); });
+              }
+            } else {
+              await _supabase.from('prizes').update(data).eq('id', prize.id);
+              setState(() { int idx = _tempPrizes.indexWhere((pr) => pr.id == prize.id); if (idx != -1) _tempPrizes[idx] = PrizeRecord.fromJson({...data, 'id': prize.id}); });
+            }
+            _showMessage('جایزه با موفقیت ذخیره شد');
+            widget.onUpdate();
+          } catch (e) {
+            _showMessage('خطا در ذخیره جایزه: $e', isError: true);
+          } finally {
+            setState(() => _isSaving = false);
           }
-          widget.onUpdate(); Navigator.pop(c);
         }, child: Text(prize == null ? 'افزودن' : 'بروزرسانی')),
       ],
     )));
@@ -1058,14 +1129,26 @@ class _AdminPanelState extends State<AdminPanel> {
 
   void _deletePrize(PrizeRecord pr) async {
     bool? confirm = await showDialog(context: context, builder: (c) => AlertDialog(title: const Text('حذف جایزه'), content: const Text('آیا از حذف این جایزه مطمئن هستید؟'), actions: [TextButton(onPressed: () => Navigator.pop(c, false), child: const Text('نه')), TextButton(onPressed: () => Navigator.pop(c, true), child: const Text('بله'))]));
-    if (confirm == true) { await _supabase.from('prizes').delete().eq('id', pr.id); setState(() { _tempPrizes.removeWhere((p) => p.id == pr.id); }); widget.onUpdate(); }
+    if (confirm == true) {
+      setState(() => _isSaving = true);
+      try {
+        await _supabase.from('prizes').delete().eq('id', pr.id);
+        setState(() { _tempPrizes.removeWhere((p) => p.id == pr.id); });
+        _showMessage('جایزه حذف شد');
+        widget.onUpdate();
+      } catch (e) {
+        _showMessage('خطا در حذف: $e', isError: true);
+      } finally {
+        setState(() => _isSaving = false);
+      }
+    }
   }
 
   Widget _buildWinnersTab() => Column(
     children: [
       Padding(
         padding: const EdgeInsets.all(8.0),
-        child: ElevatedButton.icon(onPressed: () => _showWinnerDialog(), icon: const Icon(Icons.add), label: const Text('افزودن برنده جدید')),
+        child: ElevatedButton.icon(onPressed: _isSaving ? null : () => _showWinnerDialog(), icon: const Icon(Icons.add), label: const Text('افزودن برنده جدید')),
       ),
       Expanded(
         child: ListView.builder(
@@ -1077,8 +1160,8 @@ class _AdminPanelState extends State<AdminPanel> {
               trailing: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  IconButton(icon: const Icon(Icons.edit, color: Colors.blue), onPressed: () => _showWinnerDialog(winner: _tempWinners[i])),
-                  IconButton(icon: const Icon(Icons.delete, color: Colors.red), onPressed: () => _deleteWinner(_tempWinners[i])),
+                  IconButton(icon: const Icon(Icons.edit, color: Colors.blue), onPressed: _isSaving ? null : () => _showWinnerDialog(winner: _tempWinners[i])),
+                  IconButton(icon: const Icon(Icons.delete, color: Colors.red), onPressed: _isSaving ? null : () => _deleteWinner(_tempWinners[i])),
                 ],
               ),
             ),
@@ -1108,16 +1191,31 @@ class _AdminPanelState extends State<AdminPanel> {
       ])),
       actions: [
         TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('انصراف')),
-        ElevatedButton(onPressed: () async {
-          final data = {'name': n.text, 'city': c.text, 'prize': p.text, 'date': d.text, 'lottery_code': lc.text, 'phone': ph.text};
-          if (winner == null) {
-            final res = await _supabase.from('winners').insert(data).select().single();
-            setState(() { _tempWinners.insert(0, Winner.fromJson(res)); });
-          } else {
-            await _supabase.from('winners').update(data).eq('id', winner.id);
-            setState(() { int idx = _tempWinners.indexWhere((w) => w.id == winner.id); if (idx != -1) _tempWinners[idx] = Winner.fromJson({...data, 'id': winner.id}); });
+        ElevatedButton(onPressed: _isSaving ? null : () async {
+          if (n.text.isEmpty || lc.text.isEmpty) {
+            _showMessage('نام و کد قرعه‌کشی الزامی است', isError: true);
+            return;
           }
-          widget.onUpdate(); Navigator.pop(ctx);
+          Navigator.pop(ctx);
+          setState(() => _isSaving = true);
+          try {
+            final data = {'name': n.text, 'city': c.text, 'prize': p.text, 'date': d.text, 'lottery_code': lc.text, 'phone': ph.text};
+            if (winner == null) {
+              final res = await _supabase.from('winners').insert(data).select();
+              if (res.isNotEmpty) {
+                setState(() { _tempWinners.insert(0, Winner.fromJson(res.first)); });
+              }
+            } else {
+              await _supabase.from('winners').update(data).eq('id', winner.id);
+              setState(() { int idx = _tempWinners.indexWhere((w) => w.id == winner.id); if (idx != -1) _tempWinners[idx] = Winner.fromJson({...data, 'id': winner.id}); });
+            }
+            _showMessage('اطلاعات برنده ثبت شد');
+            widget.onUpdate();
+          } catch (e) {
+            _showMessage('خطا در ثبت برنده: $e', isError: true);
+          } finally {
+            setState(() => _isSaving = false);
+          }
         }, child: Text(winner == null ? 'افزودن' : 'بروزرسانی')),
       ],
     ));
@@ -1125,14 +1223,26 @@ class _AdminPanelState extends State<AdminPanel> {
 
   void _deleteWinner(Winner w) async {
     bool? confirm = await showDialog(context: context, builder: (c) => AlertDialog(title: const Text('حذف برنده'), content: const Text('آیا از حذف این برنده مطمئن هستید؟'), actions: [TextButton(onPressed: () => Navigator.pop(c, false), child: const Text('نه')), TextButton(onPressed: () => Navigator.pop(c, true), child: const Text('بله'))]));
-    if (confirm == true) { await _supabase.from('winners').delete().eq('id', w.id); setState(() { _tempWinners.removeWhere((win) => win.id == w.id); }); widget.onUpdate(); }
+    if (confirm == true) {
+      setState(() => _isSaving = true);
+      try {
+        await _supabase.from('winners').delete().eq('id', w.id);
+        setState(() { _tempWinners.removeWhere((win) => win.id == w.id); });
+        _showMessage('برنده حذف شد');
+        widget.onUpdate();
+      } catch (e) {
+        _showMessage('خطا در حذف: $e', isError: true);
+      } finally {
+        setState(() => _isSaving = false);
+      }
+    }
   }
 
   Widget _buildNewsTab() => Column(
     children: [
       Padding(
         padding: const EdgeInsets.all(8.0),
-        child: ElevatedButton.icon(onPressed: () => _showNewsDialog(), icon: const Icon(Icons.add), label: const Text('افزودن خبر جدید')),
+        child: ElevatedButton.icon(onPressed: _isSaving ? null : () => _showNewsDialog(), icon: const Icon(Icons.add), label: const Text('افزودن خبر جدید')),
       ),
       Expanded(
         child: ListView.builder(
@@ -1144,8 +1254,8 @@ class _AdminPanelState extends State<AdminPanel> {
               trailing: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  IconButton(icon: const Icon(Icons.edit, color: Colors.blue), onPressed: () => _showNewsDialog(news: _tempNews[i])),
-                  IconButton(icon: const Icon(Icons.delete, color: Colors.red), onPressed: () => _deleteNews(_tempNews[i])),
+                  IconButton(icon: const Icon(Icons.edit, color: Colors.blue), onPressed: _isSaving ? null : () => _showNewsDialog(news: _tempNews[i])),
+                  IconButton(icon: const Icon(Icons.delete, color: Colors.red), onPressed: _isSaving ? null : () => _deleteNews(_tempNews[i])),
                 ],
               ),
             ),
@@ -1169,16 +1279,28 @@ class _AdminPanelState extends State<AdminPanel> {
       ])),
       actions: [
         TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('انصراف')),
-        ElevatedButton(onPressed: () async {
-          final data = {'title': t.text, 'content': co.text, 'date': d.text};
-          if (news == null) {
-            final res = await _supabase.from('news').insert(data).select().single();
-            setState(() { _tempNews.insert(0, AppNews.fromJson(res)); });
-          } else {
-            await _supabase.from('news').update(data).eq('id', news.id);
-            setState(() { int idx = _tempNews.indexWhere((n) => n.id == news.id); if (idx != -1) _tempNews[idx] = AppNews.fromJson({...data, 'id': news.id}); });
+        ElevatedButton(onPressed: _isSaving ? null : () async {
+          if (t.text.isEmpty) { _showMessage('عنوان خبر الزامی است', isError: true); return; }
+          Navigator.pop(ctx);
+          setState(() => _isSaving = true);
+          try {
+            final data = {'title': t.text, 'content': co.text, 'date': d.text};
+            if (news == null) {
+              final res = await _supabase.from('news').insert(data).select();
+              if (res.isNotEmpty) {
+                setState(() { _tempNews.insert(0, AppNews.fromJson(res.first)); });
+              }
+            } else {
+              await _supabase.from('news').update(data).eq('id', news.id);
+              setState(() { int idx = _tempNews.indexWhere((n) => n.id == news.id); if (idx != -1) _tempNews[idx] = AppNews.fromJson({...data, 'id': news.id}); });
+            }
+            _showMessage('خبر با موفقیت ثبت شد');
+            widget.onUpdate();
+          } catch (e) {
+            _showMessage('خطا در ثبت خبر: $e', isError: true);
+          } finally {
+            setState(() => _isSaving = false);
           }
-          widget.onUpdate(); Navigator.pop(ctx);
         }, child: Text(news == null ? 'افزودن' : 'بروزرسانی')),
       ],
     ));
@@ -1186,7 +1308,19 @@ class _AdminPanelState extends State<AdminPanel> {
 
   void _deleteNews(AppNews n) async {
     bool? confirm = await showDialog(context: context, builder: (c) => AlertDialog(title: const Text('حذف خبر'), content: const Text('آیا از حذف این خبر مطمئن هستید؟'), actions: [TextButton(onPressed: () => Navigator.pop(c, false), child: const Text('نه')), TextButton(onPressed: () => Navigator.pop(c, true), child: const Text('بله'))]));
-    if (confirm == true) { await _supabase.from('news').delete().eq('id', n.id); setState(() { _tempNews.removeWhere((item) => item.id == n.id); }); widget.onUpdate(); }
+    if (confirm == true) {
+      setState(() => _isSaving = true);
+      try {
+        await _supabase.from('news').delete().eq('id', n.id);
+        setState(() { _tempNews.removeWhere((item) => item.id == n.id); });
+        _showMessage('خبر حذف شد');
+        widget.onUpdate();
+      } catch (e) {
+        _showMessage('خطا در حذف: $e', isError: true);
+      } finally {
+        setState(() => _isSaving = false);
+      }
+    }
   }
 
   Widget _buildSupportTab() => ListView(padding: const EdgeInsets.all(16), children: [
